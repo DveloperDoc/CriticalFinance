@@ -1,0 +1,30 @@
+﻿# Dependencias
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Compilados
+dist/
+build/
+.cache/
+.expo/
+.expo-shared/
+
+# Prisma
+prisma/dev.db
+prisma/dev.db-journal
+
+# Entornos
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db

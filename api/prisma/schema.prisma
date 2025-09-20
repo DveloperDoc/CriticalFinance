@@ -1,0 +1,114 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum TransactionType {
+  debit
+  credit
+}
+
+enum BudgetPeriod {
+  monthly
+  weekly
+  yearly
+}
+
+enum AlertType {
+  budget_over
+  anomaly
+  recurring_due
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now()) @db.Timestamptz(6)
+  accounts     Account[]
+  budgets      Budget[]
+  alerts       Alert[]
+}
+
+model Account {
+  id           String        @id @default(uuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency     String        @default("CLP")
+  balanceCents Int           @default(0)
+  createdAt    DateTime      @default(now()) @db.Timestamptz(6)
+  transactions Transaction[]
+
+  @@index([userId])
+}
+
+model Category {
+  id       String        @id @default(uuid())
+  name     String        @unique
+  parentId String?
+  parent   Category?     @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[]    @relation("CategoryHierarchy")
+  color    String?
+  txs      Transaction[]
+  budgets  Budget[]
+
+  @@index([parentId])
+}
+
+model Transaction {
+  id           String          @id @default(uuid())
+  accountId    String
+  account      Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  categoryId   String?
+  category     Category?       @relation(fields: [categoryId], references: [id])
+  bookedAt     DateTime        @db.Timestamptz(6)
+  valueCents   Int
+  type         TransactionType
+  merchant     String?
+  description  String?
+  anomalyScore Float?
+  isRecurring  Boolean         @default(false)
+  createdAt    DateTime        @default(now()) @db.Timestamptz(6)
+  Alert        Alert[]
+
+  @@index([accountId, bookedAt(sort: Desc)])
+  @@index([categoryId])
+}
+
+model Budget {
+  id          String       @id @default(uuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category     @relation(fields: [categoryId], references: [id])
+  amountCents Int
+  period      BudgetPeriod @default(monthly)
+  startMonth  DateTime     @db.Timestamptz(6)
+
+  @@unique([userId, categoryId, period])
+}
+
+model Alert {
+  id            String       @id @default(uuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactionId String?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  type          AlertType
+  payload       Json
+  createdAt     DateTime     @default(now()) @db.Timestamptz(6)
+  readAt        DateTime?
+
+  @@index([userId, createdAt])
+}
