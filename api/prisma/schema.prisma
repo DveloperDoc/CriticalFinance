@@ -33,7 +33,7 @@ enum AlertType {
 model User {
   id           String    @id @default(uuid())
   name         String
-  email        String    @unique
+  email        String    @unique @db.VarChar(160)
   passwordHash String
   createdAt    DateTime  @default(now()) @db.Timestamptz(6)
   accounts     Account[]
@@ -55,7 +55,7 @@ model Account {
 
 model Category {
   id       String        @id @default(uuid())
-  name     String        @unique
+  name     String        @unique @db.VarChar(80)
   parentId String?
   parent   Category?     @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children Category[]    @relation("CategoryHierarchy")
@@ -75,12 +75,12 @@ model Transaction {
   bookedAt     DateTime        @db.Timestamptz(6)
   valueCents   Int
   type         TransactionType
-  merchant     String?
-  description  String?
+  merchant     String?         @db.VarChar(120)
+  description  String?         @db.VarChar(240)
   anomalyScore Float?
   isRecurring  Boolean         @default(false)
   createdAt    DateTime        @default(now()) @db.Timestamptz(6)
-  Alert        Alert[]
+  alerts       Alert[]
 
   @@index([accountId, bookedAt(sort: Desc)])
   @@index([categoryId])

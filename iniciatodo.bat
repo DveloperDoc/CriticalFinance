@@ -1,42 +1,44 @@
 @echo off
-setlocal ENABLEDELAYEDEXECUTION
-title Capstone - Launcher
+title 🚀 CriticalFinance Auto Launcher
+color 0A
 
-REM ==== CONFIGURACION ====
-set PROJ=F:\Capstone\Proyecto\Aplicacion
-set AVD_NAME=Medium_Phone_API_36.0  REM <-- CAMBIA por tu AVD
-set ML_VENV=.venv311                REM <-- nombre de tu venv en /ml
-set ML_PORT=8001
-set API_PORT=3000
+echo ===================================================
+echo INICIANDO AMBIENTE DE CRITICAL FINANCE
+echo ===================================================
 
-echo ==============================
-echo 🚀 Iniciando Proyecto Capstone
-echo ==============================
+REM === CONFIGURACIÓN GENERAL ===
+set PROJ=C:\CriticalFinance
+set AVD_NAME=Medium_Phone_API_36.1
+set ML_VENV=.venv311
 
-REM 0) Infra: Postgres + Redis (Docker)
-echo ▶ Infra (Docker): Postgres/Redis...
-start "Infra" cmd /k "cd /d %PROJ%\infra && if exist .env (docker compose --env-file .env up -d db redis) else (docker compose up -d db redis)"
+echo.
+echo 🔹 Levantando infraestructura (Postgres + Redis)...
+start cmd /k "cd /d %PROJ%\infra && docker compose --env-file .env up -d db redis"
 
-REM 1) ML (FastAPI) en puerto %ML_PORT%
-echo ▶ ML (FastAPI)...
-start "ML" cmd /k "cd /d %PROJ%\ml && if exist %ML_VENV%\Scripts\activate.bat (call %ML_VENV%\Scripts\activate.bat) else (echo [WARN] No venv: %ML_VENV%) && uvicorn main:app --host 0.0.0.0 --port %ML_PORT% --reload"
+echo.
+echo 🔹 Iniciando servicio de Machine Learning...
+start cmd /k "cd /d %PROJ%\ml && call %ML_VENV%\Scripts\activate.bat && uvicorn main:app --host 0.0.0.0 --port 8001 --reload"
 
-REM 2) API (NestJS) en puerto %API_PORT%
-echo ▶ API (NestJS)...
-start "API" cmd /k "cd /d %PROJ%\api && npm run start:dev"
+echo.
+echo 🔹 Levantando API (NestJS + Prisma)...
+start cmd /k "cd /d %PROJ%\api && npm run start:dev"
 
-REM 3) Emulador Android (si no está corriendo)
-echo ▶ Emulador Android...
-start "AndroidEmu" cmd /k "call \"%LOCALAPPDATA%\Android\Sdk\emulator\emulator.exe\" -avd %AVD_NAME%"
+echo.
+echo 🔹 Iniciando Emulador Android...
+start "" "%LOCALAPPDATA%\Android\Sdk\emulator\emulator.exe" -avd %AVD_NAME%
 
-REM Espera 20s para que el emulador termine de arrancar (ajusta si hace falta)
+echo.
+echo ⏳ Esperando que el emulador arranque (20 segundos)...
 timeout /t 20 >nul
 
-REM 4) Expo (abre directo en Android, sin presionar 'a')
-echo ▶ Expo (Android)...
-start "Expo" cmd /k "cd /d %PROJ%\mobile && npx expo start --android"
+echo.
+echo 🔹 Iniciando aplicación móvil con Expo...
+start cmd /k "cd /d %PROJ%\mobile && npx expo start --android"
 
-echo ==============================
-echo ✅ Todo lanzado en ventanas separadas.
-echo ==============================
+echo.
+echo ===================================================
+echo ✅ Todo el entorno de desarrollo está en marcha.
+echo ===================================================
+
 pause
+exit
