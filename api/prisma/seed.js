@@ -2,75 +2,109 @@
 const { PrismaClient } = require('@prisma/client');
 const { faker } = require('@faker-js/faker');
 const { subMonths, eachDayOfInterval } = require('date-fns');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const prisma = new PrismaClient();
 
-// Config rápida
+/**
+ * Convención:
+ * - valueCents guarda PESOS CHILENOS sin decimales (CLP no usa centavos). Ej: $3.500 => 3500.
+ * - Débitos (gastos) NEGATIVOS. Créditos (ingresos) POSITIVOS.
+ */
+
 const CONFIG = {
-  USERS: 1,               // cuántos usuarios demo
-  ACCOUNTS_PER_USER: 1,   // cuentas por usuario
-  MONTHS_BACK: 6,         // meses hacia atrás para generar transacciones
-  AVG_TX_PER_DAY: 2.2,    // promedio transacciones por día
-  CREDIT_INCOME_CLP: [450000, 900000], // rango ingresos mensuales
+  USERS: 1,
+  ACCOUNTS_PER_USER: 1,
+  MONTHS_BACK: 6,
+  AVG_TX_PER_DAY: 2.2,
+  FIXED_INCOME_CLP: 800000, // sueldo mensual fijo
 };
 
-// Catálogo mínimo de categorías (puedes ampliarlo)
+// Catálogo base por usuario
 const CATS = [
-  { name: 'Alimentación', color: '#FF6347', merchants: ['LIDER', 'JUMBO', 'TOTTUS', 'UNIMARC', 'SANTA ISABEL', 'DONDE PEPE', 'MINIMARKET'] },
+  { name: 'Alimentación', color: '#FF6347', merchants: ['LIDER', 'JUMBO', 'TOTTUS', 'UNIMARC', 'SANTA ISABEL', 'MINIMARKET'] },
   { name: 'Transporte',  color: '#1E90FF', merchants: ['RED METRO', 'UBER', 'DIDI', 'CABIFY', 'COPEC', 'SHELL', 'PETROBRAS'] },
   { name: 'Entretenimiento', color: '#9B59B6', merchants: ['NETFLIX', 'SPOTIFY', 'STEAM', 'CINEMARK', 'CINEHOYTS'] },
-  { name: 'Salud', color: '#2ECC71', merchants: ['CRUZ VERDE', 'SALCOBRAND', 'AHUMADA', 'CONSULTA MEDICA'] },
+  { name: 'Salud', color: '#2ECC71', merchants: ['CRUZ VERDE', 'SALCOBRAND', 'AHUMADA', 'CONSULTA MÉDICA'] },
   { name: 'Servicios', color: '#F39C12', merchants: ['ENEL', 'AGUAS', 'VTR', 'MOVISTAR', 'WOM', 'ENTEL', 'CLARO'] },
-  { name: 'Restaurantes', color: '#E67E22', merchants: ['MCDONALD', 'KFC', 'DOMINOS', 'TELEPIZZA', 'SUSHI', 'CAFETERIA'] },
+  { name: 'Restaurantes', color: '#E67E22', merchants: ['MCDONALD\'S', 'KFC', 'DOMINO\'S', 'SUSHI', 'CAFETERÍA'] },
 ];
 
-function clamp(n, min, max) { return Math.min(Math.max(n, min), max); }
-function randomFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+const rnd = (min, max) => faker.number.int({ min, max });
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const extId = (accountId, date, valueCents, desc) =>
+  crypto.createHash('sha1').update(`${accountId}|${date.toISOString()}|${valueCents}|${desc || ''}`).digest('hex');
 
-async function upsertCategories() {
-  for (const c of CATS) {
-    await prisma.category.upsert({
-      where: { name: c.name },
-      update: { color: c.color },
-      create: { name: c.name, color: c.color },
-    });
-  }
-  // Devuelve un mapa {nombre -> Category}
-  const all = await prisma.category.findMany();
-  return Object.fromEntries(all.map((c) => [c.name, c]));
-}
-
-function pickCategoryByMerchant(merchant, catMap) {
-  const upper = (merchant || '').toUpperCase();
-  for (const def of CATS) {
-    if (def.merchants.some((m) => upper.includes(m))) {
-      return catMap[def.name];
-    }
-  }
-  // fallback aleatorio leve
-  return catMap[randomFrom(CATS).name];
-}
-
-async function createUserWithAccounts(catMap, idx) {
+async function upsertUser(idx) {
   const email = `demo${idx + 1}@bank.cl`;
-  const user = await prisma.user.upsert({
+  const passwordHash = await bcrypt.hash('123456', 10);
+  return prisma.user.upsert({
     where: { email },
-    update: {},
-    create: { name: `Usuario Demo ${idx + 1}`, email, passwordHash: 'x' },
+    update: { passwordHash },
+    create: {
+      name: `Usuario Demo ${idx + 1}`,
+      email,
+      passwordHash,
+      rut: '11111111-1',
+      phone: '+56911111111',
+    },
   });
+}
 
+async function ensureUserCategories(userId) {
+  await prisma.category.createMany({
+    data: CATS.map(c => ({ userId, name: c.name, color: c.color })),
+    skipDuplicates: true,
+  });
+  const cats = await prisma.category.findMany({ where: { userId } });
+  return Object.fromEntries(cats.map(c => [c.name, c]));
+}
+
+async function createAccountsForUser(userId) {
   const accounts = [];
   for (let i = 0; i < CONFIG.ACCOUNTS_PER_USER; i++) {
-    const account = await prisma.account.create({
-      data: {
-        userId: user.id,
+    const bank = pick(['BancoEstado', 'Santander', 'BCI', 'Scotiabank', 'Itau']);
+    const accountType = 'CUENTA_VISTA'; // enum AccountType
+    const accountNumber = faker.string.numeric(8);
+    const holderName = 'Usuario Demo';
+    const rutTitular = '11111111-1';
+
+    const acc = await prisma.account.upsert({
+      where: {
+        userId_bank_accountType_accountNumber: { userId, bank, accountType, accountNumber },
+      },
+      update: {},
+      create: {
+        userId,
+        bank,
+        accountType,
+        accountNumber,
+        holderName,
+        rutTitular,
         currency: 'CLP',
+        alias: 'Cuenta principal',
+        active: true,
+        provider: 'mock',
+        providerRef: null,
         balanceCents: 0,
       },
     });
-    accounts.push(account);
+    accounts.push(acc);
   }
-  return { user, accounts };
+  return accounts;
+}
+
+function rangeForCategory(name) {
+  switch (name) {
+    case 'Alimentación': return [3000, 35000];
+    case 'Transporte': return [600, 15000];
+    case 'Servicios': return [5000, 60000];
+    case 'Restaurantes': return [4000, 25000];
+    case 'Entretenimiento': return [3000, 20000];
+    case 'Salud': return [2000, 30000];
+    default: return [1000, 20000];
+  }
 }
 
 function generateDailyTxForAccount(accountId, catMap) {
@@ -79,64 +113,58 @@ function generateDailyTxForAccount(accountId, catMap) {
 
   const txs = [];
 
-  // Ingresos mensuales (créditos):
+  // Ingresos mensuales fijos: $800.000 el día 5-7
   for (let m = 0; m <= CONFIG.MONTHS_BACK; m++) {
     const dt = subMonths(new Date(), m);
-    const payday = new Date(dt.getFullYear(), dt.getMonth(), 5 + Math.floor(Math.random() * 3)); // día 5-7 aprox
-    const income = faker.number.int({ min: CONFIG.CREDIT_INCOME_CLP[0], max: CONFIG.CREDIT_INCOME_CLP[1] });
+    const payday = new Date(dt.getFullYear(), dt.getMonth(), 5 + rnd(0, 2), 10, 0, 0);
+    const amount = CONFIG.FIXED_INCOME_CLP; // CLP
+    const eid = extId(accountId, payday, amount, 'Sueldo');
+
     txs.push({
       id: faker.string.uuid(),
       accountId,
       categoryId: null,
       bookedAt: payday,
-      valueCents: income,
+      postedAt: payday,
+      valueCents: amount,   // crédito positivo
       type: 'credit',
-      merchant: 'EMPRESA XYZ',
-      description: 'Depósito nómina',
+      merchant: 'EMPRESA DEMO',
+      description: 'Sueldo',
       isRecurring: true,
       anomalyScore: null,
+      balanceAfterCents: null,
       createdAt: payday,
+      externalId: eid,
     });
   }
 
-  // Gastos diarios aleatorios:
+  // Gastos diarios aleatorios
   for (const d of days) {
     const howMany = Math.random() < 0.2 ? 0 : Math.max(0, Math.round(faker.number.float({ min: 0, max: CONFIG.AVG_TX_PER_DAY + 1 })));
     for (let i = 0; i < howMany; i++) {
-      const catName = randomFrom(CATS).name;
-      const cat = catMap[catName];
+      const def = pick(CATS);
+      const [minV, maxV] = rangeForCategory(def.name);
+      const value = rnd(minV, maxV);     // CLP
+      const merchant = pick(def.merchants);
+      const when = new Date(d.getFullYear(), d.getMonth(), d.getDate(), rnd(8, 22), rnd(0, 59));
 
-      // Monto base por categoría
-      let base;
-      switch (catName) {
-        case 'Alimentación': base = faker.number.int({ min: 3000, max: 35000 }); break;
-        case 'Transporte': base = faker.number.int({ min: 600, max: 15000 }); break;
-        case 'Servicios': base = faker.number.int({ min: 5000, max: 60000 }); break;
-        case 'Restaurantes': base = faker.number.int({ min: 4000, max: 25000 }); break;
-        case 'Entretenimiento': base = faker.number.int({ min: 3000, max: 20000 }); break;
-        case 'Salud': base = faker.number.int({ min: 2000, max: 30000 }); break;
-        default: base = faker.number.int({ min: 1000, max: 20000 });
-      }
-
-      // Comerciante plausible
-      const merchant = randomFrom(CATS.find(c => c.name === catName).merchants);
-      // Ruido y rarezas para anomalías
-      const noisy = Math.random() < 0.04; // 4% anomalías
-      const value = noisy ? Math.round(base * faker.number.float({ min: 2.5, max: 6 })) : base;
-      const anomalyScore = noisy ? clamp(faker.number.float({ min: 0.7, max: 0.99 }), 0, 1) : null;
+      const eid = extId(accountId, when, -value, `${def.name} · ${merchant}`);
 
       txs.push({
         id: faker.string.uuid(),
         accountId,
-        categoryId: cat.id,
-        bookedAt: new Date(d.getFullYear(), d.getMonth(), d.getDate(), faker.number.int({ min: 8, max: 22 }), faker.number.int({ min: 0, max: 59 })),
-        valueCents: -value,
+        categoryId: catMap[def.name].id,
+        bookedAt: when,
+        postedAt: when,
+        valueCents: -value,  // débito negativo
         type: 'debit',
-        merchant: merchant,
-        description: `${catName} · ${merchant}`,
+        merchant,
+        description: `${def.name} · ${merchant}`,
         isRecurring: false,
-        anomalyScore,
-        createdAt: d,
+        anomalyScore: Math.random() < 0.04 ? faker.number.float({ min: 0.7, max: 0.99 }) : null,
+        balanceAfterCents: null,
+        createdAt: when,
+        externalId: eid,
       });
     }
   }
@@ -158,25 +186,26 @@ async function recalcBalance(accountId) {
 async function main() {
   console.time('seed');
 
-  // 1) Categorías
-  const catMap = await upsertCategories();
-
-  // 2) Generar usuarios, cuentas, y transacciones
   for (let u = 0; u < CONFIG.USERS; u++) {
-    const { accounts } = await createUserWithAccounts(catMap, u);
+    const user = await upsertUser(u);
+    const catMap = await ensureUserCategories(user.id);
+    const accounts = await createAccountsForUser(user.id);
+
     for (const acc of accounts) {
       const txs = generateDailyTxForAccount(acc.id, catMap);
-      // Inserción en bloques para rendimiento
+
+      // Inserta por lotes con idempotencia por externalId
       const chunk = 500;
       for (let i = 0; i < txs.length; i += chunk) {
         await prisma.transaction.createMany({ data: txs.slice(i, i + chunk), skipDuplicates: true });
       }
+
       await recalcBalance(acc.id);
     }
   }
 
   console.timeEnd('seed');
-  console.log('✅ Seed completo.');
+  console.log('✅ Seed completo. Usuario: demo1@bank.cl / pass: 123456');
 }
 
 main()
