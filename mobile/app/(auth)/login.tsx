@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
-import { useAuth } from '../../providers/AuthProvider';
+import { router } from 'expo-router';
+import { useAuth } from '@/providers/AuthProvider';
 
 export default function Login() {
   const { signIn } = useAuth();
@@ -9,18 +10,22 @@ export default function Login() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const onLogin = async () => {
-    setErr(null);
-    setLoading(true);
-    try {
-      await signIn(email, password);
-    } catch (e: any) {
-      setErr(e?.message ?? 'Error al iniciar sesión');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+const onLogin = async () => {
+  setErr(null);
+  setLoading(true);
+  try {
+    await signIn(email, password);
+    router.replace('/(tabs)');
+  } catch (e: any) {
+    const status = e?.response?.status;
+    if (status === 401) setErr('Correo o contraseña incorrectos');
+    else if (status === 500) setErr('Error interno del servidor');
+    else if (e?.message?.includes('Network')) setErr('No se pudo conectar con el servidor');
+    else setErr('Error al iniciar sesión');
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <View style={s.box}>
       <Text style={s.title}>Critical Finance</Text>

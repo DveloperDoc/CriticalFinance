@@ -14,7 +14,7 @@ export default function AppHeader({ title = 'CriticalFinance', showChips = true 
       <View style={s.row}>
         <Text style={s.title}>{title}</Text>
         <Image
-          source={require('@/assets/images/logo-circle.png')}
+          source={require('../../assets/images/logo-circle.png')}
           style={s.logo}
           resizeMode="contain"
         />

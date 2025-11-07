@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { colors } from '@/theme';
 import { fmtCLP, fmtFecha } from '@/utils/format';
+import { api } from '@/utils/api';
 
 type Category = { id: string; name: string; color?: string | null } | null;
 type Tx = {
@@ -16,14 +17,45 @@ type Tx = {
   anomalyScore?: number | null;
 };
 
+// busca en todas las queries que empiecen con 'transactions'
+function findTxInCache(qc: ReturnType<typeof useQueryClient>, id?: string): Tx | undefined {
+  if (!id) return undefined;
+  const all = qc.getQueriesData<Tx[]>({ queryKey: ['transactions'] });
+  for (const [, data] of all) {
+    const list = Array.isArray(data) ? data : [];
+    const hit = list.find((t) => t.id === id);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
 export default function TxDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
   const qc = useQueryClient();
 
-  // Buscamos la transacción en la cache de 'transactions'
-  const list = (qc.getQueryData(['transactions', { take: 50 }]) as Tx[]) ?? [];
-  const tx = list.find((t) => t.id === id);
+  // 1) intenta resolver desde cache de cualquier lista de 'transactions'
+  const cached = findTxInCache(qc, id);
+
+  // 2) si no está en cache, pide al backend /transactions/:id
+  const detailQ = useQuery({
+    queryKey: ['transaction', id],
+    enabled: !!id && !cached,
+    queryFn: async () => {
+      const { data } = await api.get(`/transactions/${id}`);
+      // soporta {item} o el objeto directo
+      return (data?.item ?? data) as Tx;
+    },
+  });
+
+  const tx: Tx | undefined = cached ?? detailQ.data;
+
+  if (!tx && detailQ.isLoading) {
+    return (
+      <View style={s.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   if (!tx) {
     return (
@@ -50,7 +82,9 @@ export default function TxDetail() {
         <Text style={s.value}>{fmtFecha(tx.bookedAt)}</Text>
 
         <Text style={[s.label, { marginTop: 12 }]}>Categoría</Text>
-        <Text style={[s.value, { color: tx.category?.color ?? colors.text }]}>{tx.category?.name ?? 'Sin categoría'}</Text>
+        <Text style={[s.value, { color: tx.category?.color ?? colors.text }]}>
+          {tx.category?.name ?? 'Sin categoría'}
+        </Text>
 
         <Text style={[s.label, { marginTop: 12 }]}>Monto</Text>
         <Text style={[s.amount, { color: isDebit ? colors.danger : colors.success }]}>
@@ -65,7 +99,9 @@ export default function TxDetail() {
         )}
       </View>
 
-      <Text style={s.hint}>Más adelante aquí podemos mostrar acciones: dividir gasto, cambiar categoría, reportar, etc.</Text>
+      <Text style={s.hint}>
+        Próximamente: editar categoría, dividir gasto, reportar, etc.
+      </Text>
     </ScrollView>
   );
 }

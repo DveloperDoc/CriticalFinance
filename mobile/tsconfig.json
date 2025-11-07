@@ -5,14 +5,29 @@
     "strict": true,
     "paths": {
       "@/*": [
-        "./*"
+        "src/*"
       ]
-    }
+    },
+    "moduleResolution": "Bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "types": [
+      "react",
+      "react-native"
+    ]
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "components/AppHeader.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
   ]
 }

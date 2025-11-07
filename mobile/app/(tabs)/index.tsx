@@ -1,13 +1,12 @@
+// app/(tabs)/index.tsx
 import React, { useMemo } from 'react';
-import { SafeAreaView, View, Text, FlatList, StyleSheet } from 'react-native';
-import axios from 'axios';
+import { SafeAreaView, View, Text, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-
 import { colors } from '@/theme';
 import { fmtCLP } from '@/utils/format';
-
-// Emulador Android => 10.0.2.2 | Teléfono físico => IP de tu PC
-const API_URL = 'http://10.0.2.2:3000/transactions';
+// Usa el MISMO cliente que usa setAuthToken
+import { api } from '@/api/client';
+import { useAuth } from '@/providers/AuthProvider';
 
 type Category = { id: string; name: string; color?: string | null } | null;
 type Tx = {
@@ -16,32 +15,129 @@ type Tx = {
   description?: string | null;
   valueCents: number;
   category?: Category;
-  bookedAt: string;
+  bookedAt: string; // ISO
+};
+type Me = { id: string; email: string; accounts: { id: string }[] };
+
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+// Normalizadores defensivos
+const normalizeMe = (raw: any): Me => {
+  if (!raw) return { id: '', email: '', accounts: [] };
+  if (raw?.id && Array.isArray(raw?.accounts)) return raw as Me;
+  if (raw?.data?.id) return raw.data as Me;
+  return { id: raw?.id ?? '', email: raw?.email ?? '', accounts: raw?.accounts ?? [] };
+};
+const normalizeTx = (raw: any): Tx[] => {
+  if (Array.isArray(raw)) return raw as Tx[];
+  if (Array.isArray(raw?.items)) return raw.items as Tx[];
+  if (Array.isArray(raw?.data)) return raw.data as Tx[];
+  if (Array.isArray(raw?.transactions)) return raw.transactions as Tx[];
+  return [];
 };
 
 export default function HomeScreen() {
-  const { data } = useQuery<Tx[]>({
-    queryKey: ['transactions', { take: 100 }],
-    queryFn: async () => (await axios.get(API_URL, { params: { take: 100 } })).data,
+  const { token } = useAuth();
+
+  // 1) /me → cuenta
+  const meQ = useQuery<Me>({
+    queryKey: ['me'],
+    queryFn: async () => normalizeMe((await api.get('/me')).data),
+    enabled: !!token,
     staleTime: 30_000,
+    refetchOnMount: 'always',
+    retry: 0,
   });
 
-  const { balance, gasto30d } = useMemo(() => {
+  const accId = meQ.data?.accounts?.[0]?.id ?? null;
+
+  // 2) Transacciones últimos 6 meses
+  const now = new Date();
+  const from = iso(new Date(now.getFullYear(), now.getMonth() - 5, 1)); // incluye mes actual y 5 previos
+  const to = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)); // exclusivo
+
+  const txQ = useQuery<Tx[]>({
+    queryKey: ['transactions', accId, from, to],
+    queryFn: async () => {
+      const { data } = await api.get('/transactions', {
+        params: { accountId: accId, from, to, take: 500, includeCategory: true },
+      });
+      return normalizeTx(data);
+    },
+    enabled: !!token && !!accId,
+    staleTime: 30_000,
+    refetchOnMount: 'always',
+    retry: 0,
+  });
+
+  // 3) KPIs y serie mensual
+  const { balance, gasto30d, serieMensual } = useMemo(() => {
+    const list = txQ.data ?? [];
     const now = new Date();
-    const from = new Date(now);
-    from.setDate(from.getDate() - 30);
+    const last30 = new Date(now);
+    last30.setDate(last30.getDate() - 30);
 
     let bal = 0;
     let gasto = 0;
 
-    (data ?? []).forEach((t) => {
-      bal += t.valueCents;
-      const when = new Date(t.bookedAt).getTime();
-      if (when >= from.getTime() && t.valueCents < 0) gasto += Math.abs(t.valueCents);
-    });
+    // buckets 6 meses
+    const buckets = new Map<string, number>();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const k = d.toLocaleDateString('es-CL', { month: 'short', year: '2-digit' });
+      buckets.set(k, 0);
+    }
 
-    return { balance: bal, gasto30d: gasto };
-  }, [data]);
+    for (const t of list) {
+      const when = new Date(t.bookedAt);
+      const cents = Number(t.valueCents) || 0;
+      bal += cents;
+
+      if (when >= last30 && cents < 0) gasto += Math.abs(cents);
+
+      const k = new Date(when.getFullYear(), when.getMonth(), 1)
+        .toLocaleDateString('es-CL', { month: 'short', year: '2-digit' });
+
+      if (buckets.has(k) && cents < 0) {
+        buckets.set(k, (buckets.get(k) || 0) + Math.abs(cents));
+      }
+    }
+
+    const serie = Array.from(buckets.entries()).map(([label, cents]) => ({
+      label,
+      value: cents,
+    }));
+
+    return { balance: bal, gasto30d: gasto, serieMensual: serie };
+  }, [txQ.data]);
+
+  // Estados
+  if (!token) {
+    return (
+      <SafeAreaView style={s.container}>
+        <Text style={s.cardSub}>No autenticado</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (meQ.isLoading || txQ.isLoading) {
+    return (
+      <SafeAreaView style={s.container}>
+        <View style={s.center}><ActivityIndicator /><Text style={s.cardSub}>Cargando…</Text></View>
+      </SafeAreaView>
+    );
+  }
+
+  if (meQ.isError || txQ.isError) {
+    const err = (meQ.error as any) ?? (txQ.error as any);
+    const status = err?.response?.status;
+    const msg = err?.response?.data?.message || err?.message || 'Error';
+    return (
+      <SafeAreaView style={s.container}>
+        <View style={s.center}><Text style={s.err}>{status ? `${status} · ` : ''}{msg}</Text></View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={s.container}>
@@ -49,34 +145,31 @@ export default function HomeScreen() {
       <View style={s.cardsRow}>
         <View style={s.card}>
           <Text style={s.cardTitle}>Monto Actual</Text>
-          <Text style={s.cardValue}>{fmtCLP(balance ?? 0)}</Text>
-          <Text style={s.cardSub}>+20 % mes anterior</Text>
+          <Text style={[s.cardValue, (balance ?? 0) < 0 && { color: colors.danger }]}>
+            {fmtCLP(balance ?? 0)}
+          </Text>
+          <Text style={s.cardSub}>Saldo acumulado</Text>
         </View>
 
         <View style={s.card}>
-          <Text style={s.cardTitle}>Ahorro Actual</Text>
-          <Text style={s.cardValue}>{fmtCLP(Math.max(0, (balance ?? 0) * 0.35))}</Text>
-          <Text style={s.cardSub}>+12 % mes anterior</Text>
+          <Text style={s.cardTitle}>Gasto 30 días</Text>
+          <Text style={[s.cardValue, { color: colors.danger }]}>{fmtCLP(gasto30d ?? 0)}</Text>
+          <Text style={s.cardSub}>Solo débitos</Text>
         </View>
       </View>
 
-      {/* “Gráfico” placeholder */}
+      {/* Gráfico Meses vs Gasto */}
       <View style={s.chartCard}>
-        <Text style={s.sectionTitle}>Gasto total (30 días)</Text>
-        <View style={s.chartBox}>
-          <View style={s.chartLine} />
-        </View>
-        <Text style={s.chartFoot}>{fmtCLP(gasto30d)} en el período</Text>
+        <Text style={s.sectionTitle}>Gasto por mes (últimos 6)</Text>
+        <Bars serie={serieMensual ?? []} />
+        <Text style={s.chartFoot}>Se grafica |valor| de débitos</Text>
       </View>
 
-      {/* Contactos dummy */}
+      {/* Lista placeholder */}
       <View style={s.listCard}>
         <Text style={s.sectionTitle}>Contactos</Text>
         <FlatList
-          data={[
-            { id: '1', n: 'Elynn Lee' },
-            { id: '2', n: 'Oscar Dum' },
-          ]}
+          data={[{ id: '1', n: 'Elynn Lee' }, { id: '2', n: 'Oscar Dum' }]}
           keyExtractor={(i) => i.id}
           ItemSeparatorComponent={() => <View style={s.sep} />}
           renderItem={({ item }) => (
@@ -94,8 +187,33 @@ export default function HomeScreen() {
   );
 }
 
+/** Gráfico simple de barras */
+function Bars({ serie }: { serie: { label: string; value: number }[] }) {
+  const max = Math.max(1, ...serie.map((d) => Number(d.value) || 0));
+  if (serie.length === 0) {
+    return <View style={[s.barsWrap, { alignItems: 'center', justifyContent: 'center' }]}><Text style={s.cardSub}>Sin datos</Text></View>;
+  }
+  return (
+    <View style={s.barsWrap}>
+      {serie.map((d) => {
+        const v = Number(d.value) || 0;
+        const h = Math.round((v / max) * 100); // 0..100
+        return (
+          <View key={d.label} style={s.barCol}>
+            <View style={[s.bar, { height: Math.max(4, h), backgroundColor: colors.primary }]} />
+            <Text style={s.barLabel}>{d.label}</Text>
+            <Text style={s.barValue}>{fmtCLP(v)}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
+
   cardsRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, marginTop: 8 },
 
   card: {
@@ -120,14 +238,21 @@ const s = StyleSheet.create({
     borderColor: colors.border,
   },
   sectionTitle: { color: colors.text, fontWeight: '600', marginBottom: 8 },
-  chartBox: {
-    height: 120,
-    borderRadius: 10,
+
+  barsWrap: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    height: 140,
+    padding: 8,
     backgroundColor: colors.bg,
-    overflow: 'hidden',
-    justifyContent: 'flex-end',
+    borderRadius: 10,
   },
-  chartLine: { height: 2, backgroundColor: colors.primary, marginHorizontal: 8, marginBottom: 8 },
+  barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  bar: { width: '70%', borderRadius: 6, minHeight: 4 },
+  barLabel: { color: colors.textMuted, fontSize: 10, marginTop: 6, textTransform: 'capitalize' },
+  barValue: { color: colors.textMuted, fontSize: 10 },
+
   chartFoot: { color: colors.textMuted, marginTop: 6 },
 
   listCard: {
@@ -145,4 +270,5 @@ const s = StyleSheet.create({
   itemTitle: { color: colors.text, fontWeight: '600' },
   itemSub: { color: colors.textMuted, fontSize: 12 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
+  err: { color: colors.danger, textAlign: 'center' }, 
 });

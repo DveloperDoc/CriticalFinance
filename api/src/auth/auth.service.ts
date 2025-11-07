@@ -10,13 +10,15 @@ export class AuthService {
   async validate(email: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new UnauthorizedException('Credenciales inválidas');
+
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Credenciales inválidas');
+
     return user;
   }
 
-  sign(userId: string, email: string) {
+  async sign(userId: string, email: string): Promise<string> {
     const payload = { sub: userId, email };
-    return { access_token: this.jwt.sign(payload) };
+    return this.jwt.signAsync(payload);
   }
 }
