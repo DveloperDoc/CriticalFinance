@@ -1,4 +1,3 @@
-// src/transactions/transactions.controller.ts
 import {
   Body,
   Controller,
@@ -7,6 +6,8 @@ import {
   Query,
   Req,
   UseGuards,
+  Param,
+  NotFoundException,
 } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -28,5 +29,19 @@ export class TransactionsController {
   findAll(@Req() req: any, @Query() filter: FilterTransactionsDto) {
     const userId = req.user.id;
     return this.transactionsService.findAll(userId, filter);
+  }
+
+  // NUEVO: GET /transactions/:id
+  @Get(':id')
+  async findOne(@Req() req: any, @Param('id') id: string) {
+    const userId = req.user.id;
+
+    const tx = await this.transactionsService.findOne(userId, id);
+
+    if (!tx) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    return tx;
   }
 }

@@ -1,29 +1,25 @@
-// app/_layout.tsx
+// app/(auth)/_layout.tsx
 import React from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { Stack } from 'expo-router';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { queryClient } from '@/lib/queryClient';
-import { AuthProvider, useAuth } from '@/providers/AuthProvider';
+import { ActivityIndicator, View, Text } from 'react-native';
+import { Stack, Redirect } from 'expo-router';
+import { useAuth } from '@/providers/AuthProvider';
 
-function Gate() {
-  const { loading } = useAuth();
+export default function AuthLayout() {
+  const { token, loading } = useAuth();
+
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator />
+        <Text style={{ marginTop: 8 }}>Cargando…</Text>
       </View>
     );
   }
-  return <Stack screenOptions={{ headerShown: false }} />;
-}
 
-export default function RootLayout() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Gate />
-      </AuthProvider>
-    </QueryClientProvider>
-  );
+  // Si ya hay token, no tiene sentido estar en login
+  if (token) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  return <Stack screenOptions={{ headerShown: false }} />;
 }

@@ -1,4 +1,3 @@
-// app/(tabs)/movimientos.tsx  (ajusta la ruta según tu estructura)
 import React, { useMemo } from 'react';
 import {
   View,
@@ -14,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { api } from '@/api/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { fmtCLP } from '@/utils/format';
+import { colors } from '@/theme'; // << importante
 
 type Category = { id: string; name: string; color?: string | null } | null;
 type Tx = {
@@ -48,7 +48,7 @@ export default function Movimientos() {
   } = useQuery<Tx[]>({
     queryKey: ['transactions', 'list'],
     queryFn: async () => {
-      const r = await api.get('/transactions'); // sin take
+      const r = await api.get('/transactions');
       return normalize(r.data);
     },
     enabled,
@@ -109,10 +109,11 @@ export default function Movimientos() {
                 {item.subtitle} · {item.date}
               </Text>
             </View>
+
             <Text
               style={[
                 s.amount,
-                item.isDebit ? { color: '#ef4444' } : { color: '#22c55e' },
+                item.isDebit ? s.amountDebit : s.amountCredit,
               ]}
             >
               {item.isDebit ? '-' : '+'}
@@ -122,12 +123,16 @@ export default function Movimientos() {
         )}
         ListEmptyComponent={
           <View style={s.center}>
-            <Text>No hay movimientos</Text>
+            <Text style={s.empty}>No hay movimientos</Text>
           </View>
         }
         contentContainerStyle={items.length === 0 ? s.flex1 : undefined}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor={colors.text}
+          />
         }
       />
     </View>
@@ -135,19 +140,72 @@ export default function Movimientos() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
+  container: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: colors.background, // consistente con tu layout
+  },
+
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    backgroundColor: colors.background,
+  },
+
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    backgroundColor: colors.surface, // igual que tu menú
   },
+
   left: { flexShrink: 1, paddingRight: 12 },
-  title: { fontSize: 16, fontWeight: '600' },
-  subtitle: { fontSize: 12, color: '#6b7280', marginTop: 2 },
-  amount: { fontSize: 16, fontWeight: '700' },
-  sep: { height: 1, backgroundColor: '#192a4dff' },
-  err: { color: '#ef4444' },
+
+  title: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+
+  subtitle: {
+    fontSize: 12,
+    color: colors.textMuted || '#6b7280',
+    marginTop: 2,
+  },
+
+  amount: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  amountDebit: {
+    color: colors.danger ?? '#ef4444',
+  },
+
+  amountCredit: {
+    color: colors.success ?? '#22c55e',
+  },
+
+  sep: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginVertical: 6,
+  },
+
+  empty: {
+    color: colors.text,
+    opacity: 0.6,
+  },
+
+  err: {
+    color: colors.danger ?? '#ef4444',
+    textAlign: 'center',
+  },
+
   flex1: { flex: 1, justifyContent: 'center' },
 });

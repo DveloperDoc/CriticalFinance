@@ -1,5 +1,4 @@
-// src/transactions/transactions.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { FilterTransactionsDto } from './dto/filter-transactions.dto';
@@ -30,7 +29,6 @@ export class TransactionsService {
         description: dto.description ?? null,
         categoryId: dto.categoryId ?? null,
         externalId: dto.externalId ?? null,
-        // fields ML se podrán llenar después
       },
     });
   }
@@ -57,5 +55,29 @@ export class TransactionsService {
       orderBy: { bookedAt: 'desc' },
       take: 200, // límite razonable para móvil
     });
+  }
+
+  // ---------------------------------------------------------
+  // NUEVO MÉTODO: obtener detalle de transacción por id
+  // ---------------------------------------------------------
+  async findOne(userId: string, id: string) {
+    const tx = await this.prisma.transaction.findFirst({
+      where: {
+        id,
+        account: {
+          userId, // asegura que pertenece al usuario
+        },
+      },
+      include: {
+        category: true,
+        mlPredictedCategory: true,
+      },
+    });
+
+    if (!tx) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    return tx;
   }
 }

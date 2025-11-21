@@ -11,6 +11,7 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { RegisterDto } from './dto/register.dto'; // 👈 nuevo
 
 @Controller('auth')
 export class AuthController {
@@ -35,10 +36,19 @@ export class AuthController {
     };
   }
 
+  // 👇 NUEVO: registro de usuario
+  @Post('register')
+  async register(@Body() dto: RegisterDto) {
+    // crea el usuario (lanza error si el email ya existe)
+    const user = await this.auth.register(dto.name, dto.email, dto.password);
+    // si quisieras podrías devolver también token, pero tu app móvil
+    // ya hace login después, así que con el usuario basta
+    return user;
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('me')
   async me(@Req() req: any) {
-    // Según tu JwtStrategy, normalmente req.user.id o req.user.sub
     const userId = req.user?.id ?? req.user?.sub;
     if (!userId) {
       throw new UnauthorizedException('Token inválido');
