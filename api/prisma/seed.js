@@ -1,5 +1,5 @@
 /* eslint-disable */
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient, AccountType, Currency } = require('@prisma/client');
 const { faker } = require('@faker-js/faker');
 const { subMonths, eachDayOfInterval } = require('date-fns');
 const bcrypt = require('bcryptjs');
@@ -21,7 +21,6 @@ const CONFIG = {
   FIXED_INCOME_CLP: 800000, // sueldo mensual fijo
 };
 
-// Catálogo base por usuario
 const CATS = [
   { name: 'Alimentación', color: '#FF6347', merchants: ['LIDER', 'JUMBO', 'TOTTUS', 'UNIMARC', 'SANTA ISABEL', 'MINIMARKET'] },
   { name: 'Transporte',  color: '#1E90FF', merchants: ['RED METRO', 'UBER', 'DIDI', 'CABIFY', 'COPEC', 'SHELL', 'PETROBRAS'] },
@@ -35,6 +34,8 @@ const rnd = (min, max) => faker.number.int({ min, max });
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const extId = (accountId, date, valueCents, desc) =>
   crypto.createHash('sha1').update(`${accountId}|${date.toISOString()}|${valueCents}|${desc || ''}`).digest('hex');
+
+// ---------------- USER ------------------
 
 async function upsertUser(idx) {
   const email = `demo${idx + 1}@bank.cl`;
@@ -52,6 +53,8 @@ async function upsertUser(idx) {
   });
 }
 
+// ---------------- CATEGORIES --------------
+
 async function ensureUserCategories(userId) {
   await prisma.category.createMany({
     data: CATS.map(c => ({ userId, name: c.name, color: c.color })),
@@ -61,18 +64,26 @@ async function ensureUserCategories(userId) {
   return Object.fromEntries(cats.map(c => [c.name, c]));
 }
 
+// ---------------- ACCOUNTS -----------------
+
 async function createAccountsForUser(userId) {
   const accounts = [];
   for (let i = 0; i < CONFIG.ACCOUNTS_PER_USER; i++) {
     const bank = pick(['BancoEstado', 'Santander', 'BCI', 'Scotiabank', 'Itau']);
-    const accountType = 'CUENTA_VISTA'; // enum AccountType
+    const accountType = AccountType.CUENTA_VISTA;
     const accountNumber = faker.string.numeric(8);
     const holderName = 'Usuario Demo';
     const rutTitular = '11111111-1';
 
     const acc = await prisma.account.upsert({
       where: {
-        userId_bank_accountType_accountNumber: { userId, bank, accountType, accountNumber },
+        // ⚠️ Ajuste: prisma ahora genera este nombre según el @@unique()
+        userId_bank_accountType_accountNumber: {
+          userId,
+          bank,
+          accountType,
+          accountNumber,
+        },
       },
       update: {},
       create: {
@@ -82,7 +93,7 @@ async function createAccountsForUser(userId) {
         accountNumber,
         holderName,
         rutTitular,
-        currency: 'CLP',
+        currency: Currency.CLP,
         alias: 'Cuenta principal',
         active: true,
         provider: 'mock',
@@ -90,10 +101,13 @@ async function createAccountsForUser(userId) {
         balanceCents: 0,
       },
     });
+
     accounts.push(acc);
   }
   return accounts;
 }
+
+// ------------- TRANSACTIONS GENERATOR -------------
 
 function rangeForCategory(name) {
   switch (name) {
@@ -113,11 +127,11 @@ function generateDailyTxForAccount(accountId, catMap) {
 
   const txs = [];
 
-  // Ingresos mensuales fijos: $800.000 el día 5-7
+  // Ingreso mensual fijo
   for (let m = 0; m <= CONFIG.MONTHS_BACK; m++) {
     const dt = subMonths(new Date(), m);
     const payday = new Date(dt.getFullYear(), dt.getMonth(), 5 + rnd(0, 2), 10, 0, 0);
-    const amount = CONFIG.FIXED_INCOME_CLP; // CLP
+    const amount = CONFIG.FIXED_INCOME_CLP;
     const eid = extId(accountId, payday, amount, 'Sueldo');
 
     txs.push({
@@ -126,7 +140,7 @@ function generateDailyTxForAccount(accountId, catMap) {
       categoryId: null,
       bookedAt: payday,
       postedAt: payday,
-      valueCents: amount,   // crédito positivo
+      valueCents: amount,
       type: 'credit',
       merchant: 'EMPRESA DEMO',
       description: 'Sueldo',
@@ -138,16 +152,15 @@ function generateDailyTxForAccount(accountId, catMap) {
     });
   }
 
-  // Gastos diarios aleatorios
+  // Gastos diarios
   for (const d of days) {
-    const howMany = Math.random() < 0.2 ? 0 : Math.max(0, Math.round(faker.number.float({ min: 0, max: CONFIG.AVG_TX_PER_DAY + 1 })));
+    const howMany = Math.random() < 0.2 ? 0 : Math.round(faker.number.float({ min: 0, max: CONFIG.AVG_TX_PER_DAY + 1 }));
     for (let i = 0; i < howMany; i++) {
       const def = pick(CATS);
       const [minV, maxV] = rangeForCategory(def.name);
-      const value = rnd(minV, maxV);     // CLP
+      const value = rnd(minV, maxV);
       const merchant = pick(def.merchants);
       const when = new Date(d.getFullYear(), d.getMonth(), d.getDate(), rnd(8, 22), rnd(0, 59));
-
       const eid = extId(accountId, when, -value, `${def.name} · ${merchant}`);
 
       txs.push({
@@ -156,7 +169,7 @@ function generateDailyTxForAccount(accountId, catMap) {
         categoryId: catMap[def.name].id,
         bookedAt: when,
         postedAt: when,
-        valueCents: -value,  // débito negativo
+        valueCents: -value,
         type: 'debit',
         merchant,
         description: `${def.name} · ${merchant}`,
@@ -165,6 +178,12 @@ function generateDailyTxForAccount(accountId, catMap) {
         balanceAfterCents: null,
         createdAt: when,
         externalId: eid,
+
+        // ML fields (opcionales)
+        mlPredictedCategoryId: null,
+        mlLabelSource: null,
+        mlModelVersion: null,
+        features: null,
       });
     }
   }
@@ -177,6 +196,7 @@ async function recalcBalance(accountId) {
     _sum: { valueCents: true },
     where: { accountId },
   });
+
   await prisma.account.update({
     where: { id: accountId },
     data: { balanceCents: sum._sum.valueCents ?? 0 },
@@ -194,10 +214,12 @@ async function main() {
     for (const acc of accounts) {
       const txs = generateDailyTxForAccount(acc.id, catMap);
 
-      // Inserta por lotes con idempotencia por externalId
       const chunk = 500;
       for (let i = 0; i < txs.length; i += chunk) {
-        await prisma.transaction.createMany({ data: txs.slice(i, i + chunk), skipDuplicates: true });
+        await prisma.transaction.createMany({
+          data: txs.slice(i, i + chunk),
+          skipDuplicates: true,
+        });
       }
 
       await recalcBalance(acc.id);
@@ -210,4 +232,7 @@ async function main() {
 
 main()
   .then(() => prisma.$disconnect())
-  .catch((e) => { console.error(e); return prisma.$disconnect().finally(() => process.exit(1)); });
+  .catch((e) => {
+    console.error(e);
+    return prisma.$disconnect().finally(() => process.exit(1));
+  });

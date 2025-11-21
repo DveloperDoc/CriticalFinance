@@ -1,5 +1,4 @@
-// Prisma schema — versión corregida y extendida
-// Compatible con seed.js y módulo Auth
+// Prisma schema — versión ML optimizada
 
 datasource db {
   provider = "postgresql"
@@ -29,6 +28,12 @@ enum AlertType {
   recurring_due
 }
 
+enum AlertSource {
+  system   // lógica de negocio normal
+  ml       // generado por modelo de machine learning
+  user     // creado o confirmado manualmente
+}
+
 enum AccountType {
   CUENTA_CORRIENTE
   CUENTA_VISTA
@@ -42,6 +47,12 @@ enum Currency {
   EUR
 }
 
+enum MlLabelSource {
+  model    // etiqueta propuesta por el modelo
+  manual   // etiqueta confirmada o cambiada por el usuario
+  imported // traída desde el banco u otra fuente externa
+}
+
 // --- Modelos -------------------------------------------------
 
 model User {
@@ -53,10 +64,11 @@ model User {
   rut          String?  @db.VarChar(16)
   phone        String?  @db.VarChar(24)
 
-  accounts   Account[]
-  budgets    Budget[]
-  alerts     Alert[]
-  categories Category[]
+  accounts     Account[]
+  budgets      Budget[]
+  alerts       Alert[]
+  categories   Category[]
+  savingsRules SavingsRule[]
 }
 
 model Account {
@@ -68,18 +80,23 @@ model Account {
   accountType   AccountType
   accountNumber String
   holderName    String
-  rutTitular    String      @db.VarChar(16)
+  rutTitular    String?     @db.VarChar(16)
 
-  alias       String?
-  active      Boolean @default(true)
-  provider    String?
-  providerRef String?
+  alias         String?
+  active        Boolean @default(true)
+  provider      String?
+  providerRef   String?
 
-  currency     Currency @default(CLP)
-  balanceCents Int      @default(0)
-  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+  // Último saldo conocido (snapshot), útil para features de ML
+  currency           Currency @default(CLP)
+  balanceCents       Int      @default(0)
+  creditLimitCents   Int?     // para tarjetas de crédito
+  availableCreditCents Int?   // para tarjetas de crédito
+
+  createdAt    DateTime      @default(now()) @db.Timestamptz(6)
 
   transactions Transaction[]
+  savingsRules SavingsRule[]
 
   @@unique([userId, bank, accountType, accountNumber])
   @@index([userId])
@@ -96,7 +113,11 @@ model Category {
   children Category[] @relation("CategoryHierarchy")
   color    String?
 
-  txs     Transaction[]
+  // Categoría confirmada de la transacción (user / lógica de negocio)
+  txs          Transaction[] @relation("TxCategory")
+  // Categoría predicha por modelo de ML
+  predictedTxs Transaction[] @relation("TxPredictedCategory")
+
   budgets Budget[]
 
   @@unique([userId, name])
@@ -108,8 +129,14 @@ model Transaction {
   id         String    @id @default(uuid())
   accountId  String
   account    Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  // Categoría confirmada (user / negocio)
   categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id])
+  category   Category? @relation("TxCategory", fields: [categoryId], references: [id])
+
+  // Categoría predicha por ML (puede diferir de categoryId hasta que el usuario confirme)
+  mlPredictedCategoryId String?
+  mlPredictedCategory   Category? @relation("TxPredictedCategory", fields: [mlPredictedCategoryId], references: [id])
 
   bookedAt          DateTime        @db.Timestamptz(6)
   postedAt          DateTime?       @db.Timestamptz(6)
@@ -117,10 +144,17 @@ model Transaction {
   type              TransactionType
   merchant          String?         @db.VarChar(120)
   description       String?         @db.VarChar(240)
+
+  // Campos pensados para ML / análisis avanzado
   anomalyScore      Float?
   isRecurring       Boolean         @default(false)
   balanceAfterCents Int?
   externalId        String?
+
+  // Metadatos ML
+  mlLabelSource  MlLabelSource?  // de dónde viene la etiqueta actual
+  mlModelVersion String?         // versión de modelo que generó la predicción
+  features       Json?           // features calculadas y cacheadas para entrenamiento/inferencia
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   alerts    Alert[]
@@ -128,6 +162,7 @@ model Transaction {
   @@unique([accountId, externalId])
   @@index([accountId, bookedAt(sort: Desc)])
   @@index([categoryId])
+  @@index([mlPredictedCategoryId])
 }
 
 model Budget {
@@ -150,9 +185,28 @@ model Alert {
   transactionId String?
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
   type          AlertType
-  payload       Json
+  source        AlertSource  @default(system)
+  payload       Json         // datos adicionales (ej: valores previos/posteriores, explicación del modelo)
   createdAt     DateTime     @default(now()) @db.Timestamptz(6)
   readAt        DateTime?
 
   @@index([userId, createdAt])
+}
+
+// Reglas de ahorro / umbrales de saldo por cuenta
+model SavingsRule {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  accountId     String
+  account       Account  @relation(fields: [accountId], references: [id])
+
+  thresholdCents    Int     // umbral duro (ej: 200.000)
+  notifyMarginCents Int?    // margen previo para avisar antes de llegar al umbral
+
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([userId, accountId])
 }

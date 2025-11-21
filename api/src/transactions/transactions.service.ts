@@ -1,61 +1,61 @@
 // src/transactions/transactions.service.ts
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
-
-type FindAllParams = {
-  userId: string;            // <-- nuevo
-  accountId?: string;
-  take?: number;
-  skip?: number;
-  from?: string;
-  to?: string;
-};
+import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { FilterTransactionsDto } from './dto/filter-transactions.dto';
 
 @Injectable()
 export class TransactionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async findAll({ userId, accountId, take = 100, skip = 0, from, to }: FindAllParams) {
-    // Si filtras por accountId, verifica que la cuenta pertenezca al usuario
-    if (accountId) {
-      const acc = await this.prisma.account.findFirst({ where: { id: accountId, userId } });
-      if (!acc) throw new ForbiddenException('Cuenta no encontrada para este usuario');
+  async create(userId: string, dto: CreateTransactionDto) {
+    // validar que la cuenta pertenece al usuario
+    const account = await this.prisma.account.findFirst({
+      where: { id: dto.accountId, userId },
+      select: { id: true },
+    });
+
+    if (!account) {
+      throw new Error('Account not found or not owned by user');
     }
 
-    const where: Prisma.TransactionWhereInput = {
-      // Siempre limita por dueño
-      account: { userId },
-      ...(accountId ? { accountId } : {}),
-      ...(from || to
-        ? {
-            bookedAt: {
-              gte: from ? new Date(from) : undefined,
-              lte: to ? new Date(to) : undefined,
-            },
-          }
-        : {}),
-    };
+    return this.prisma.transaction.create({
+      data: {
+        accountId: dto.accountId,
+        valueCents: dto.valueCents,
+        type: dto.type,
+        bookedAt: new Date(dto.bookedAt),
+        postedAt: dto.postedAt ? new Date(dto.postedAt) : null,
+        merchant: dto.merchant ?? null,
+        description: dto.description ?? null,
+        categoryId: dto.categoryId ?? null,
+        externalId: dto.externalId ?? null,
+        // fields ML se podrán llenar después
+      },
+    });
+  }
 
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.transaction.findMany({
-        where,
-        orderBy: { bookedAt: 'desc' },
-        take,
-        skip,
-        select: {
-          id: true,
-          bookedAt: true,
-          valueCents: true,
-          type: true,
-          description: true,
-          merchant: true,
-          categoryId: true,
+  async findAll(userId: string, filter: FilterTransactionsDto) {
+    const { accountId, from, to, categoryId } = filter;
+
+    return this.prisma.transaction.findMany({
+      where: {
+        account: {
+          userId,
         },
-      }),
-      this.prisma.transaction.count({ where }),
-    ]);
-
-    return { total, items };
+        accountId: accountId || undefined,
+        categoryId: categoryId || undefined,
+        bookedAt: {
+          gte: from ? new Date(from) : undefined,
+          lte: to ? new Date(to) : undefined,
+        },
+      },
+      include: {
+        category: true,
+        mlPredictedCategory: true,
+      },
+      orderBy: { bookedAt: 'desc' },
+      take: 200, // límite razonable para móvil
+    });
   }
 }

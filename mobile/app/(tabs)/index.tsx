@@ -1,6 +1,13 @@
 // app/(tabs)/index.tsx
 import React, { useMemo } from 'react';
-import { SafeAreaView, View, Text, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import {
+  SafeAreaView,
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  ActivityIndicator,
+} from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { colors } from '@/theme';
 import { fmtCLP } from '@/utils/format';
@@ -9,6 +16,7 @@ import { api } from '@/api/client';
 import { useAuth } from '@/providers/AuthProvider';
 
 type Category = { id: string; name: string; color?: string | null } | null;
+
 type Tx = {
   id: string;
   merchant?: string | null;
@@ -17,6 +25,7 @@ type Tx = {
   category?: Category;
   bookedAt: string; // ISO
 };
+
 type Me = { id: string; email: string; accounts: { id: string }[] };
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -26,8 +35,13 @@ const normalizeMe = (raw: any): Me => {
   if (!raw) return { id: '', email: '', accounts: [] };
   if (raw?.id && Array.isArray(raw?.accounts)) return raw as Me;
   if (raw?.data?.id) return raw.data as Me;
-  return { id: raw?.id ?? '', email: raw?.email ?? '', accounts: raw?.accounts ?? [] };
+  return {
+    id: raw?.id ?? '',
+    email: raw?.email ?? '',
+    accounts: Array.isArray(raw?.accounts) ? raw.accounts : [],
+  };
 };
+
 const normalizeTx = (raw: any): Tx[] => {
   if (Array.isArray(raw)) return raw as Tx[];
   if (Array.isArray(raw?.items)) return raw.items as Tx[];
@@ -60,7 +74,7 @@ export default function HomeScreen() {
     queryKey: ['transactions', accId, from, to],
     queryFn: async () => {
       const { data } = await api.get('/transactions', {
-        params: { accountId: accId, from, to, take: 500, includeCategory: true },
+        params: { accountId: accId, from, to }, // ← SIN take ni includeCategory
       });
       return normalizeTx(data);
     },
@@ -73,8 +87,8 @@ export default function HomeScreen() {
   // 3) KPIs y serie mensual
   const { balance, gasto30d, serieMensual } = useMemo(() => {
     const list = txQ.data ?? [];
-    const now = new Date();
-    const last30 = new Date(now);
+    const ahora = new Date();
+    const last30 = new Date(ahora);
     last30.setDate(last30.getDate() - 30);
 
     let bal = 0;
@@ -83,7 +97,7 @@ export default function HomeScreen() {
     // buckets 6 meses
     const buckets = new Map<string, number>();
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const d = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1);
       const k = d.toLocaleDateString('es-CL', { month: 'short', year: '2-digit' });
       buckets.set(k, 0);
     }
@@ -91,12 +105,18 @@ export default function HomeScreen() {
     for (const t of list) {
       const when = new Date(t.bookedAt);
       const cents = Number(t.valueCents) || 0;
+
+      // saldo acumulado
       bal += cents;
 
+      // gasto últimos 30 días (solo débitos)
       if (when >= last30 && cents < 0) gasto += Math.abs(cents);
 
-      const k = new Date(when.getFullYear(), when.getMonth(), 1)
-        .toLocaleDateString('es-CL', { month: 'short', year: '2-digit' });
+      // bucket mensual (solo débitos)
+      const k = new Date(when.getFullYear(), when.getMonth(), 1).toLocaleDateString(
+        'es-CL',
+        { month: 'short', year: '2-digit' },
+      );
 
       if (buckets.has(k) && cents < 0) {
         buckets.set(k, (buckets.get(k) || 0) + Math.abs(cents));
@@ -115,7 +135,9 @@ export default function HomeScreen() {
   if (!token) {
     return (
       <SafeAreaView style={s.container}>
-        <Text style={s.cardSub}>No autenticado</Text>
+        <View style={s.center}>
+          <Text style={s.cardSub}>No autenticado</Text>
+        </View>
       </SafeAreaView>
     );
   }
@@ -123,7 +145,10 @@ export default function HomeScreen() {
   if (meQ.isLoading || txQ.isLoading) {
     return (
       <SafeAreaView style={s.container}>
-        <View style={s.center}><ActivityIndicator /><Text style={s.cardSub}>Cargando…</Text></View>
+        <View style={s.center}>
+          <ActivityIndicator />
+          <Text style={s.cardSub}>Cargando…</Text>
+        </View>
       </SafeAreaView>
     );
   }
@@ -134,18 +159,51 @@ export default function HomeScreen() {
     const msg = err?.response?.data?.message || err?.message || 'Error';
     return (
       <SafeAreaView style={s.container}>
-        <View style={s.center}><Text style={s.err}>{status ? `${status} · ` : ''}{msg}</Text></View>
+        <View style={s.center}>
+          <Text style={s.err}>
+            {status ? `${status} · ` : ''}
+            {msg}
+          </Text>
+        </View>
       </SafeAreaView>
     );
   }
 
+  if (!accId) {
+    return (
+      <SafeAreaView style={s.container}>
+        <View style={s.center}>
+          <Text style={s.cardSub}>Tu usuario aún no tiene cuentas asociadas.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const txList = txQ.data ?? [];
+
   return (
     <SafeAreaView style={s.container}>
+      {/* Header con usuario y cuenta */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
+        <Text style={{ color: colors.textMuted, fontSize: 12 }}>Hola,</Text>
+        <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>
+          {meQ.data?.email ?? 'Usuario'}
+        </Text>
+        <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>
+          Cuenta: {accId}
+        </Text>
+      </View>
+
       {/* Tarjetas resumen */}
       <View style={s.cardsRow}>
         <View style={s.card}>
           <Text style={s.cardTitle}>Monto Actual</Text>
-          <Text style={[s.cardValue, (balance ?? 0) < 0 && { color: colors.danger }]}>
+          <Text
+            style={[
+              s.cardValue,
+              (balance ?? 0) < 0 && { color: colors.danger },
+            ]}
+          >
             {fmtCLP(balance ?? 0)}
           </Text>
           <Text style={s.cardSub}>Saldo acumulado</Text>
@@ -153,7 +211,9 @@ export default function HomeScreen() {
 
         <View style={s.card}>
           <Text style={s.cardTitle}>Gasto 30 días</Text>
-          <Text style={[s.cardValue, { color: colors.danger }]}>{fmtCLP(gasto30d ?? 0)}</Text>
+          <Text style={[s.cardValue, { color: colors.danger }]}>
+            {fmtCLP(gasto30d ?? 0)}
+          </Text>
           <Text style={s.cardSub}>Solo débitos</Text>
         </View>
       </View>
@@ -165,23 +225,62 @@ export default function HomeScreen() {
         <Text style={s.chartFoot}>Se grafica |valor| de débitos</Text>
       </View>
 
-      {/* Lista placeholder */}
+      {/* Lista de últimos movimientos */}
       <View style={s.listCard}>
-        <Text style={s.sectionTitle}>Contactos</Text>
-        <FlatList
-          data={[{ id: '1', n: 'Elynn Lee' }, { id: '2', n: 'Oscar Dum' }]}
-          keyExtractor={(i) => i.id}
-          ItemSeparatorComponent={() => <View style={s.sep} />}
-          renderItem={({ item }) => (
-            <View style={s.rowBetween}>
-              <View>
-                <Text style={s.itemTitle}>{item.n}</Text>
-                <Text style={s.itemSub}>correo@dominioficticio.net</Text>
-              </View>
-              <View style={s.dot} />
-            </View>
-          )}
-        />
+        <Text style={s.sectionTitle}>Últimos movimientos</Text>
+        {txList.length === 0 ? (
+          <Text style={s.cardSub}>
+            No hay movimientos en el período seleccionado.
+          </Text>
+        ) : (
+          <FlatList
+            data={txList}
+            keyExtractor={(i) => i.id}
+            ItemSeparatorComponent={() => <View style={s.sep} />}
+            refreshing={txQ.isRefetching || meQ.isRefetching}
+            onRefresh={() => {
+              meQ.refetch();
+              txQ.refetch();
+            }}
+            renderItem={({ item }) => {
+              const label =
+                item.merchant ||
+                item.description ||
+                (item.valueCents < 0 ? 'Pago' : 'Abono');
+              const fecha = new Date(item.bookedAt).toLocaleDateString(
+                'es-CL',
+                {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: '2-digit',
+                },
+              );
+              const isDebit = item.valueCents < 0;
+              const amountAbs = Math.abs(item.valueCents || 0);
+
+              return (
+                <View style={s.rowBetween}>
+                  <View>
+                    <Text style={s.itemTitle}>{label}</Text>
+                    <Text style={s.itemSub}>
+                      {item.category?.name ?? 'Sin categoría'} · {fecha}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      s.itemAmount,
+                      isDebit && { color: colors.danger },
+                      !isDebit && { color: colors.primary },
+                    ]}
+                  >
+                    {isDebit ? '-' : '+'}
+                    {fmtCLP(amountAbs)}
+                  </Text>
+                </View>
+              );
+            }}
+          />
+        )}
       </View>
     </SafeAreaView>
   );
@@ -191,7 +290,16 @@ export default function HomeScreen() {
 function Bars({ serie }: { serie: { label: string; value: number }[] }) {
   const max = Math.max(1, ...serie.map((d) => Number(d.value) || 0));
   if (serie.length === 0) {
-    return <View style={[s.barsWrap, { alignItems: 'center', justifyContent: 'center' }]}><Text style={s.cardSub}>Sin datos</Text></View>;
+    return (
+      <View
+        style={[
+          s.barsWrap,
+          { alignItems: 'center', justifyContent: 'center' },
+        ]}
+      >
+        <Text style={s.cardSub}>Sin datos</Text>
+      </View>
+    );
   }
   return (
     <View style={s.barsWrap}>
@@ -200,7 +308,12 @@ function Bars({ serie }: { serie: { label: string; value: number }[] }) {
         const h = Math.round((v / max) * 100); // 0..100
         return (
           <View key={d.label} style={s.barCol}>
-            <View style={[s.bar, { height: Math.max(4, h), backgroundColor: colors.primary }]} />
+            <View
+              style={[
+                s.bar,
+                { height: Math.max(4, h), backgroundColor: colors.primary },
+              ]}
+            />
             <Text style={s.barLabel}>{d.label}</Text>
             <Text style={s.barValue}>{fmtCLP(v)}</Text>
           </View>
@@ -250,7 +363,12 @@ const s = StyleSheet.create({
   },
   barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
   bar: { width: '70%', borderRadius: 6, minHeight: 4 },
-  barLabel: { color: colors.textMuted, fontSize: 10, marginTop: 6, textTransform: 'capitalize' },
+  barLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    marginTop: 6,
+    textTransform: 'capitalize',
+  },
   barValue: { color: colors.textMuted, fontSize: 10 },
 
   chartFoot: { color: colors.textMuted, marginTop: 6 },
@@ -265,10 +383,16 @@ const s = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
+  rowBetween: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
   sep: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
   itemTitle: { color: colors.text, fontWeight: '600' },
   itemSub: { color: colors.textMuted, fontSize: 12 },
+  itemAmount: { fontWeight: '700', fontSize: 14 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
-  err: { color: colors.danger, textAlign: 'center' }, 
+  err: { color: colors.danger, textAlign: 'center' },
 });

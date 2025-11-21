@@ -1,12 +1,13 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { colors } from '@/theme';
-import { fmtCLP, fmtFecha } from '@/utils/format';
-import { api } from '@/utils/api';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/api/client';
+import { useAuth } from '@/providers/AuthProvider';
+import { fmtCLP } from '@/utils/format';
 
 type Category = { id: string; name: string; color?: string | null } | null;
+
 type Tx = {
   id: string;
   merchant?: string | null;
@@ -14,111 +15,127 @@ type Tx = {
   valueCents: number;
   category?: Category;
   bookedAt: string;
-  anomalyScore?: number | null;
 };
 
-// busca en todas las queries que empiecen con 'transactions'
-function findTxInCache(qc: ReturnType<typeof useQueryClient>, id?: string): Tx | undefined {
-  if (!id) return undefined;
-  const all = qc.getQueriesData<Tx[]>({ queryKey: ['transactions'] });
-  for (const [, data] of all) {
-    const list = Array.isArray(data) ? data : [];
-    const hit = list.find((t) => t.id === id);
-    if (hit) return hit;
-  }
-  return undefined;
-}
+const normalizeOne = (raw: any): Tx | null => {
+  if (!raw) return null;
+  if (Array.isArray(raw)) return (raw[0] ?? null) as Tx | null;
+  if (Array.isArray(raw?.data)) return (raw.data[0] ?? null) as Tx | null;
+  if (raw?.data) return raw.data as Tx;
+  if (raw?.item) return raw.item as Tx;
+  return raw as Tx;
+};
 
-export default function TxDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const qc = useQueryClient();
+export default function MovimientoDetalle() {
+  const { token } = useAuth();
+  const { id } = useLocalSearchParams<{ id?: string }>();
 
-  // 1) intenta resolver desde cache de cualquier lista de 'transactions'
-  const cached = findTxInCache(qc, id);
+  const enabled = !!token && !!id;
 
-  // 2) si no está en cache, pide al backend /transactions/:id
-  const detailQ = useQuery({
+  const {
+    data: tx,
+    isLoading,
+    isError,
+    error,
+  } = useQuery<Tx | null>({
     queryKey: ['transaction', id],
-    enabled: !!id && !cached,
+    enabled,
     queryFn: async () => {
-      const { data } = await api.get(`/transactions/${id}`);
-      // soporta {item} o el objeto directo
-      return (data?.item ?? data) as Tx;
+      const r = await api.get(`/transactions/${id}`);
+      return normalizeOne(r.data);
     },
+    staleTime: 60_000,
+    refetchOnMount: 'always',
+    retry: 0,
   });
 
-  const tx: Tx | undefined = cached ?? detailQ.data;
-
-  if (!tx && detailQ.isLoading) {
+  if (!token) {
     return (
       <View style={s.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator />
       </View>
     );
   }
 
-  if (!tx) {
+  if (!id) {
     return (
       <View style={s.center}>
-        <Text style={s.muted}>No se encontró el movimiento</Text>
+        <Text style={s.err}>Falta el id del movimiento.</Text>
       </View>
     );
   }
 
-  const isDebit = tx.valueCents < 0;
+  if (isLoading) {
+    return (
+      <View style={s.center}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  if (isError || !tx) {
+    const status = (error as any)?.response?.status;
+    const msg =
+      (error as any)?.response?.data?.message ||
+      (error as any)?.message ||
+      'No se pudo cargar el movimiento';
+    return (
+      <View style={s.center}>
+        <Text style={s.err}>
+          {status ? `${status} · ` : ''}
+          {msg}
+        </Text>
+      </View>
+    );
+  }
+
+  const raw = tx.valueCents ?? 0;
+  const isDebit = raw < 0;
+  const abs = Math.abs(raw);
+  const fecha = new Date(tx.bookedAt).toLocaleDateString('es-CL', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  });
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16 }}>
-      <Text style={s.title}>Detalle del movimiento</Text>
-
-      <View style={s.card}>
-        <Text style={s.label}>Comercio</Text>
-        <Text style={s.value}>{tx.merchant ?? '—'}</Text>
-
-        <Text style={[s.label, { marginTop: 12 }]}>Descripción</Text>
-        <Text style={s.value}>{tx.description ?? '—'}</Text>
-
-        <Text style={[s.label, { marginTop: 12 }]}>Fecha</Text>
-        <Text style={s.value}>{fmtFecha(tx.bookedAt)}</Text>
-
-        <Text style={[s.label, { marginTop: 12 }]}>Categoría</Text>
-        <Text style={[s.value, { color: tx.category?.color ?? colors.text }]}>
-          {tx.category?.name ?? 'Sin categoría'}
-        </Text>
-
-        <Text style={[s.label, { marginTop: 12 }]}>Monto</Text>
-        <Text style={[s.amount, { color: isDebit ? colors.danger : colors.success }]}>
-          {fmtCLP(tx.valueCents)}
-        </Text>
-
-        {typeof tx.anomalyScore === 'number' && (
-          <>
-            <Text style={[s.label, { marginTop: 12 }]}>Riesgo / Anomalía</Text>
-            <Text style={s.value}>{(tx.anomalyScore * 100).toFixed(1)}%</Text>
-          </>
-        )}
-      </View>
-
-      <Text style={s.hint}>
-        Próximamente: editar categoría, dividir gasto, reportar, etc.
+    <View style={s.container}>
+      <Text style={s.label}>Comercio / descripción</Text>
+      <Text style={s.value}>
+        {tx.merchant || tx.description || 'Sin descripción'}
       </Text>
-    </ScrollView>
+
+      <Text style={s.label}>Monto</Text>
+      <Text style={[s.value, isDebit ? s.debit : s.credit]}>
+        {isDebit ? '-' : '+'}
+        {fmtCLP(abs)}
+      </Text>
+
+      <Text style={s.label}>Fecha</Text>
+      <Text style={s.value}>{fecha}</Text>
+
+      <Text style={s.label}>Categoría</Text>
+      <Text style={s.value}>{tx.category?.name ?? 'Sin categoría'}</Text>
+
+      <Text style={s.label}>ID</Text>
+      <Text style={s.valueMono}>{tx.id}</Text>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  center: { flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-  muted: { color: colors.textMuted },
-  title: { color: colors.text, fontSize: 20, fontWeight: '700', marginBottom: 12 },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+  container: { flex: 1, padding: 16, backgroundColor: 'black' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
+  label: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    marginTop: 12,
+    marginBottom: 2,
   },
-  label: { color: colors.textMuted, fontSize: 12 },
-  value: { color: colors.text, fontSize: 16, fontWeight: '600' },
-  amount: { fontSize: 22, fontWeight: '800', marginTop: 4 },
-  hint: { color: colors.textMuted, marginTop: 16, fontSize: 12 },
+  value: { fontSize: 16, color: '#f9fafb' },
+  valueMono: { fontSize: 14, color: '#f9fafb', fontFamily: 'monospace' },
+  debit: { color: '#ef4444' },
+  credit: { color: '#22c55e' },
+  err: { color: '#ef4444', textAlign: 'center' },
 });

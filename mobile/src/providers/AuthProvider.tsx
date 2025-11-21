@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import { View, Text, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
-import { setAuthToken } from '@/api/client';
+import { setAuthToken, api } from '@/api/client';
 import { login as loginApi } from '@/api/auth';
 
 type User = { id: string; email: string } | null;
@@ -11,8 +11,8 @@ type Ctx = {
   user: User;
   token: string | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 };
 
 const AuthCtx = createContext<Ctx | null>(null);
@@ -38,10 +38,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const validToken = t && t !== 'null' && t !== 'undefined' ? t : null;
         setToken(validToken);
-        setAuthToken(validToken); // <-- garantiza header en boot
+        setAuthToken(validToken);
 
         if (u) {
-          try { setUser(JSON.parse(u)); } catch { setUser(null); }
+          try {
+            setUser(JSON.parse(u));
+          } catch {
+            setUser(null);
+          }
         }
       } finally {
         setLoading(false);
@@ -49,25 +53,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  // Login: persiste primero, luego actualiza estado y header
-  const signIn = async (email: string, password: string) => {
+  // Login
+  const login = async (email: string, password: string) => {
     const { access_token, user: apiUser } = await loginApi(email, password);
 
-    await AsyncStorage.multiSet([
-      [STORAGE.token, access_token],
-      [STORAGE.user, apiUser ? JSON.stringify(apiUser) : ''],
-    ]);
-
-    setAuthToken(access_token);   // <-- header para axios
+    // Guardar token
+    await AsyncStorage.setItem(STORAGE.token, access_token);
+    setAuthToken(access_token);
     setToken(access_token);
-    setUser(apiUser ?? null);
 
-    // Opcional: limpia cache ligada a sesión anterior
+    let finalUser: User = apiUser ?? null;
+
+    if (!finalUser) {
+      try {
+        const me = await api.get('/me');
+        finalUser = { id: me.data.id, email: me.data.email };
+      } catch {
+        finalUser = null;
+      }
+    }
+
+    await AsyncStorage.setItem(
+      STORAGE.user,
+      finalUser ? JSON.stringify(finalUser) : '',
+    );
+
+    setUser(finalUser);
+
     queryClient.clear();
   };
 
-  // Logout: corta dependencias, cancela queries y limpia storage
-  const signOut = async () => {
+  // Logout
+  const logout = async () => {
     try {
       setAuthToken(null);
       setToken(null);
@@ -82,7 +99,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const value = useMemo(() => ({ user, token, loading, signIn, signOut }), [user, token, loading]);
+  const value = useMemo(
+    () => ({ user, token, loading, login, logout }),
+    [user, token, loading],
+  );
 
   return (
     <AuthCtx.Provider value={value}>

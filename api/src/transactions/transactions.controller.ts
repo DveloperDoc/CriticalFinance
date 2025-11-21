@@ -1,33 +1,32 @@
 // src/transactions/transactions.controller.ts
-import { Controller, Get, Query, UseGuards, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
+import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { FilterTransactionsDto } from './dto/filter-transactions.dto';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 
 @Controller('transactions')
-@UseGuards(JwtAuthGuard) // exige JWT en todas las rutas
+@UseGuards(JwtAuthGuard)
 export class TransactionsController {
-  constructor(private readonly svc: TransactionsService) {}
+  constructor(private readonly transactionsService: TransactionsService) {}
+
+  @Post()
+  create(@Req() req: any, @Body() dto: CreateTransactionDto) {
+    const userId = req.user.id;
+    return this.transactionsService.create(userId, dto);
+  }
 
   @Get()
-  async getAll(
-    @Req() req: any,
-    @Query('accountId') accountId?: string,
-    @Query('take') take?: string,
-    @Query('skip') skip?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ) {
-    // El guard decodifica el JWT y agrega req.user
-    const userId = req.user.userId as string;
-
-    // Pasa el userId al servicio para filtrar solo sus cuentas
-    return this.svc.findAll({
-      userId,
-      accountId,
-      take: take ? Number(take) : undefined,
-      skip: skip ? Number(skip) : undefined,
-      from,
-      to,
-    });
+  findAll(@Req() req: any, @Query() filter: FilterTransactionsDto) {
+    const userId = req.user.id;
+    return this.transactionsService.findAll(userId, filter);
   }
 }
