@@ -64,6 +64,9 @@ model User {
   rut          String?  @db.VarChar(16)
   phone        String?  @db.VarChar(24)
 
+  // tokens de notificación push (Expo / FCM)
+  pushTokens   PushToken[]
+
   accounts     Account[]
   budgets      Budget[]
   alerts       Alert[]
@@ -88,10 +91,10 @@ model Account {
   providerRef   String?
 
   // Último saldo conocido (snapshot), útil para features de ML
-  currency           Currency @default(CLP)
-  balanceCents       Int      @default(0)
-  creditLimitCents   Int?     // para tarjetas de crédito
-  availableCreditCents Int?   // para tarjetas de crédito
+  currency             Currency @default(CLP)
+  balanceCents         Int      @default(0)
+  creditLimitCents     Int?     // para tarjetas de crédito
+  availableCreditCents Int?     // para tarjetas de crédito
 
   createdAt    DateTime      @default(now()) @db.Timestamptz(6)
 
@@ -209,4 +212,20 @@ model SavingsRule {
   createdAt     DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([userId, accountId])
+}
+
+// Tokens de push (Expo / FCM, etc.)
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token     String   @db.VarChar(255)
+  platform  String?  @db.VarChar(32)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([userId, token], name: "user_token")
+  @@index([userId])
 }

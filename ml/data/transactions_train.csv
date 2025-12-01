@@ -1,0 +1,225 @@
+txId,userId,accountType,currency,valueCents,type,isRecurring,balanceAfterCents,bookedAt,merchant,description,category
+2c2fe29f-970b-4e71-85a3-429403b175c7,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-11901,debit,false,,2025-05-21T12:59:00.000Z,DOMINO'S,Restaurantes · DOMINO'S,Restaurantes
+54757b20-0f90-495a-b77c-a1ec44d38b30,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-20377,debit,false,,2025-05-21T22:30:00.000Z,KFC,Restaurantes · KFC,Restaurantes
+37f9ca55-339d-4d6b-beaa-40cd85912d6a,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15343,debit,false,,2025-05-22T19:03:00.000Z,CINEMARK,Entretenimiento · CINEMARK,Entretenimiento
+bf3d5a7c-3dae-4f0c-95ba-f5a0e47c5ea8,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-4741,debit,false,,2025-05-23T17:22:00.000Z,TOTTUS,Alimentación · TOTTUS,Alimentación
+5c4e80a5-ba63-490e-8221-bdc5cf40df7f,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-8143,debit,false,,2025-05-24T02:20:00.000Z,CONSULTA MÉDICA,Salud · CONSULTA MÉDICA,Salud
+30b7cdc7-b547-4d39-9624-1fd50c0b5c4d,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-14656,debit,false,,2025-05-25T20:22:00.000Z,KFC,Restaurantes · KFC,Restaurantes
+16bbfe70-b9c8-401f-bd4d-e75d7d2b715d,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-958,debit,false,,2025-05-26T19:37:00.000Z,RED METRO,Transporte · RED METRO,Transporte
+89bbe20d-1698-41b3-95c8-23eea4b02379,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-24020,debit,false,,2025-05-26T23:56:00.000Z,CAFETERÍA,Restaurantes · CAFETERÍA,Restaurantes
+2e4e4ad0-2c7b-4d2a-8c7e-9f99f6825508,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-1024,debit,false,,2025-05-28T18:59:00.000Z,PETROBRAS,Transporte · PETROBRAS,Transporte
+96b06aba-50d5-4956-8424-2637eeb02db0,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-50957,debit,false,,2025-05-29T23:15:00.000Z,VTR,Servicios · VTR,Servicios
+8b8bb245-3634-4ad2-b389-c80f47930b9c,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-9628,debit,false,,2025-05-30T15:30:00.000Z,CINEMARK,Entretenimiento · CINEMARK,Entretenimiento
+7276655d-99d7-462f-ba8d-6f3bafb83225,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-9197,debit,false,,2025-05-30T18:51:00.000Z,AGUAS,Servicios · AGUAS,Servicios
+a5e98f90-0c7f-4b08-9b96-9abaad61d249,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-4214,debit,false,,2025-05-31T20:52:00.000Z,UBER,Transporte · UBER,Transporte
+8137695e-0e30-4a5e-8f78-9b28ce478ec2,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-10894,debit,false,,2025-05-31T22:06:00.000Z,COPEC,Transporte · COPEC,Transporte
+440a3f2f-059c-4879-947f-a0b670034749,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-29743,debit,false,,2025-05-31T12:59:00.000Z,JUMBO,Alimentación · JUMBO,Alimentación
+3bbd8e93-f2ff-42d1-a444-8225531a1f11,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-21428,debit,false,,2025-06-02T23:51:00.000Z,CLARO,Servicios · CLARO,Servicios
+28e59d74-5c3e-4ebe-bd6f-6b685836822c,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15135,debit,false,,2025-06-02T22:21:00.000Z,STEAM,Entretenimiento · STEAM,Entretenimiento
+52fc2a42-b3c2-4a58-a182-6e8658de797d,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-11983,debit,false,,2025-06-03T18:49:00.000Z,CABIFY,Transporte · CABIFY,Transporte
+42e520b2-9266-4e4b-9880-3ef74bbcf9b3,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-43147,debit,false,,2025-06-03T22:49:00.000Z,ENEL,Servicios · ENEL,Servicios
+0a541209-49ee-490f-85c8-75ab2a832cfb,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-13342,debit,false,,2025-06-04T15:50:00.000Z,DIDI,Transporte · DIDI,Transporte
+9fe78e89-dc52-4c6d-9e5f-679ca1524d3f,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-12023,debit,false,,2025-06-04T21:47:00.000Z,MCDONALD'S,Restaurantes · MCDONALD'S,Restaurantes
+42bfd071-c795-42ec-b3f5-ba68b760c7ff,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-13516,debit,false,,2025-06-04T18:30:00.000Z,CLARO,Servicios · CLARO,Servicios
+4a498455-a769-4c91-89f7-45c79acfe1c4,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-13846,debit,false,,2025-06-07T02:38:00.000Z,CINEHOYTS,Entretenimiento · CINEHOYTS,Entretenimiento
+63bc04ee-eca8-4aee-b02d-b18191a0f991,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15441,debit,false,,2025-06-06T18:17:00.000Z,MINIMARKET,Alimentación · MINIMARKET,Alimentación
+7df95cd8-5288-4fd2-9e8b-3323212e7088,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-14344,debit,false,,2025-06-08T19:09:00.000Z,KFC,Restaurantes · KFC,Restaurantes
+29aab3cc-3f53-4374-81b5-b26f02bdfe96,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-9929,debit,false,,2025-06-08T14:51:00.000Z,SUSHI,Restaurantes · SUSHI,Restaurantes
+2369d3e3-4e10-4a17-977b-026c7a74b39b,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-10740,debit,false,,2025-06-09T23:15:00.000Z,SPOTIFY,Entretenimiento · SPOTIFY,Entretenimiento
+52359c76-99b6-41d5-9069-b27d7dd83b89,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-20594,debit,false,,2025-06-11T21:50:00.000Z,CAFETERÍA,Restaurantes · CAFETERÍA,Restaurantes
+dadb3b69-e6d0-48b8-9560-63c631b396d0,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-17485,debit,false,,2025-06-11T16:57:00.000Z,SUSHI,Restaurantes · SUSHI,Restaurantes
+95112dd9-c88f-4dd2-a6b1-cf0d576bbaa8,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-51765,debit,false,,2025-06-12T01:52:00.000Z,MOVISTAR,Servicios · MOVISTAR,Servicios
+c2ca5878-b959-4dcf-9de0-7059c43b3c3c,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15637,debit,false,,2025-06-13T01:50:00.000Z,CONSULTA MÉDICA,Salud · CONSULTA MÉDICA,Salud
+33c9cbb6-a6c5-44cc-94e2-484ef4cd49f0,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-4890,debit,false,,2025-06-13T17:46:00.000Z,LIDER,Alimentación · LIDER,Alimentación
+baee1a5d-9392-4d17-a3ea-7b017574df2a,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-53363,debit,false,,2025-06-14T13:43:00.000Z,ENTEL,Servicios · ENTEL,Servicios
+1546be62-a7a8-407d-a073-84f3d04eee0b,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15121,debit,false,,2025-06-16T22:08:00.000Z,SPOTIFY,Entretenimiento · SPOTIFY,Entretenimiento
+919bedd3-e2a8-4f21-965a-8db7246bb2fd,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-7625,debit,false,,2025-06-16T17:10:00.000Z,SPOTIFY,Entretenimiento · SPOTIFY,Entretenimiento
+61f975b5-c26b-41b1-8a01-b79046cfaa4c,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-5321,debit,false,,2025-06-17T21:10:00.000Z,SPOTIFY,Entretenimiento · SPOTIFY,Entretenimiento
+34265f8f-bf0a-4f6c-aa56-bf0c2049554f,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-52230,debit,false,,2025-06-17T15:14:00.000Z,ENTEL,Servicios · ENTEL,Servicios
+ceeb063b-b9c9-478b-b539-2f93ac9ee8c6,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-11670,debit,false,,2025-06-18T23:10:00.000Z,SHELL,Transporte · SHELL,Transporte
+718d1e82-83f2-47f9-b093-be2f3b6328c2,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-9797,debit,false,,2025-06-18T15:47:00.000Z,SANTA ISABEL,Alimentación · SANTA ISABEL,Alimentación
+44b2a217-ee5b-443b-8ae9-a6dc086d0747,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-7944,debit,false,,2025-06-19T01:02:00.000Z,CRUZ VERDE,Salud · CRUZ VERDE,Salud
+e50ce567-723c-45d9-a4b8-fe01c3fc3ec7,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15188,debit,false,,2025-06-19T14:06:00.000Z,DOMINO'S,Restaurantes · DOMINO'S,Restaurantes
+46738302-98ea-42a8-8cee-4ef32d1d7fdf,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-7007,debit,false,,2025-06-19T22:18:00.000Z,COPEC,Transporte · COPEC,Transporte
+0ca3f79b-f764-4e22-b634-f4bb39867beb,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-21104,debit,false,,2025-06-21T13:23:00.000Z,DOMINO'S,Restaurantes · DOMINO'S,Restaurantes
+7671f862-2230-443e-8755-c5ea655b0498,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-1730,debit,false,,2025-06-22T14:23:00.000Z,UBER,Transporte · UBER,Transporte
+11f4fd9b-dc93-4fff-a7ee-7a4763e5fd13,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-7220,debit,false,,2025-06-23T21:15:00.000Z,STEAM,Entretenimiento · STEAM,Entretenimiento
+842b2476-759f-4255-bf6a-c05c66395600,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15120,debit,false,,2025-06-26T12:22:00.000Z,AGUAS,Servicios · AGUAS,Servicios
+683f9e6a-6e04-4b5d-b69c-332cc0b50efb,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-10141,debit,false,,2025-06-26T23:42:00.000Z,ENEL,Servicios · ENEL,Servicios
+6021aff1-f96b-4f84-be42-c62ef2ae5866,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-8900,debit,false,,2025-06-28T00:20:00.000Z,MCDONALD'S,Restaurantes · MCDONALD'S,Restaurantes
+7bbd85ac-27f3-4bd0-90ae-0253cbc92228,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15611,debit,false,,2025-06-29T00:51:00.000Z,CRUZ VERDE,Salud · CRUZ VERDE,Salud
+d7b14eb2-8083-478f-8db7-15e6d7e98d55,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-11833,debit,false,,2025-06-28T13:21:00.000Z,ENTEL,Servicios · ENTEL,Servicios
+bca38514-fdc1-4c52-9cda-403eb93c2354,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-17952,debit,false,,2025-07-01T00:44:00.000Z,ENEL,Servicios · ENEL,Servicios
+8b0788a9-bd6a-4906-a9ef-d828dd2f5e3b,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-53285,debit,false,,2025-07-01T15:27:00.000Z,WOM,Servicios · WOM,Servicios
+020e8d73-1d95-4d10-9fa4-af542cf0c40f,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-12827,debit,false,,2025-07-01T23:39:00.000Z,NETFLIX,Entretenimiento · NETFLIX,Entretenimiento
+83932b5c-56fa-4fb2-bd84-8be67cf9787b,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-7340,debit,false,,2025-07-02T23:26:00.000Z,MOVISTAR,Servicios · MOVISTAR,Servicios
+28df53dc-2657-44bb-bae4-bd701097fd23,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-17202,debit,false,,2025-07-02T18:39:00.000Z,SUSHI,Restaurantes · SUSHI,Restaurantes
+09cddc0a-fba2-4ee5-b2d1-58bf44fa7183,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-25638,debit,false,,2025-07-04T17:43:00.000Z,CLARO,Servicios · CLARO,Servicios
+97eedbf2-ce8e-4d15-beae-09c00cac4e69,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-2403,debit,false,,2025-07-04T13:30:00.000Z,CABIFY,Transporte · CABIFY,Transporte
+664aae70-179e-4b97-a64d-e3da31dacf66,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-3583,debit,false,,2025-07-06T21:34:00.000Z,COPEC,Transporte · COPEC,Transporte
+958a6f05-bb1a-4395-81c7-fcc0ae307df2,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-6594,debit,false,,2025-07-07T17:56:00.000Z,STEAM,Entretenimiento · STEAM,Entretenimiento
+61a2ccca-0f38-467c-a504-86ff6f533962,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-4738,debit,false,,2025-07-07T14:41:00.000Z,KFC,Restaurantes · KFC,Restaurantes
+c3b0df72-26c7-4463-a440-ae848bbd1a0d,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-4256,debit,false,,2025-07-12T02:37:00.000Z,AHUMADA,Salud · AHUMADA,Salud
+4c08d85b-4fdc-45f9-b0fb-1ff86b2c6697,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-14634,debit,false,,2025-07-12T21:47:00.000Z,CABIFY,Transporte · CABIFY,Transporte
+2c3fd151-55c7-416c-8ada-10eea3082bbc,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-11217,debit,false,,2025-07-12T21:31:00.000Z,CABIFY,Transporte · CABIFY,Transporte
+46e48ecd-05ae-47bd-b630-1c09e6d0ce5b,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-5284,debit,false,,2025-07-13T21:39:00.000Z,SUSHI,Restaurantes · SUSHI,Restaurantes
+4531f712-1a9a-44ef-bc28-d6243d1c8eaa,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-14780,debit,false,,2025-07-16T15:59:00.000Z,STEAM,Entretenimiento · STEAM,Entretenimiento
+72b14ab2-2749-4cc0-84d3-e908616e7b29,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-20152,debit,false,,2025-07-16T22:36:00.000Z,KFC,Restaurantes · KFC,Restaurantes
+f7e4ea6c-6407-4bd3-a2ca-41c19067c240,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-21668,debit,false,,2025-07-16T15:32:00.000Z,SALCOBRAND,Salud · SALCOBRAND,Salud
+e0ddf319-7601-4f93-8188-4de42189324b,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-36059,debit,false,,2025-07-17T18:44:00.000Z,WOM,Servicios · WOM,Servicios
+35d93f5c-66d6-44eb-b226-e385284c04d9,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-22503,debit,false,,2025-07-18T01:01:00.000Z,MCDONALD'S,Restaurantes · MCDONALD'S,Restaurantes
+03bd022c-e9e2-456a-b9c3-4e70bde2ba8d,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-26616,debit,false,,2025-07-17T12:30:00.000Z,MOVISTAR,Servicios · MOVISTAR,Servicios
+d0135c9b-4ce1-49b3-8ee9-fcff00a6b331,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-16564,debit,false,,2025-07-18T19:17:00.000Z,DOMINO'S,Restaurantes · DOMINO'S,Restaurantes
+a7ac6242-7e99-4baa-8541-c3d2313aa684,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-25855,debit,false,,2025-07-19T23:03:00.000Z,LIDER,Alimentación · LIDER,Alimentación
+dacd3342-b590-4e36-9b03-f597e29ce15f,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-14662,debit,false,,2025-07-20T19:15:00.000Z,AHUMADA,Salud · AHUMADA,Salud
+f7b8ccdc-d828-4fcb-a407-f3d0e64eba7d,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-4876,debit,false,,2025-07-20T14:17:00.000Z,UBER,Transporte · UBER,Transporte
+5dd45e65-f60e-4fea-9e60-c5a4bedb54ef,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-7028,debit,false,,2025-07-20T22:22:00.000Z,MCDONALD'S,Restaurantes · MCDONALD'S,Restaurantes
+5fcb1c2c-995b-4a82-8923-6ecf2b01897b,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-29539,debit,false,,2025-07-21T12:44:00.000Z,UNIMARC,Alimentación · UNIMARC,Alimentación
+9dafe4dd-d161-4ea3-a0c0-ec8527d3a67b,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-12668,debit,false,,2025-07-21T15:40:00.000Z,SANTA ISABEL,Alimentación · SANTA ISABEL,Alimentación
+14113425-daea-4220-a400-5e3355078170,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15493,debit,false,,2025-07-25T19:59:00.000Z,CINEHOYTS,Entretenimiento · CINEHOYTS,Entretenimiento
+411daabc-e1c1-4647-80b6-fd550110920a,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-5253,debit,false,,2025-07-25T14:49:00.000Z,SALCOBRAND,Salud · SALCOBRAND,Salud
+9e1e7485-5767-4d2e-a4a6-018a5a77d56e,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-5312,debit,false,,2025-07-26T21:22:00.000Z,SANTA ISABEL,Alimentación · SANTA ISABEL,Alimentación
+bda9953c-d54a-4905-9dd1-4868989a7b80,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-6958,debit,false,,2025-07-26T23:29:00.000Z,RED METRO,Transporte · RED METRO,Transporte
+e8b6b326-bbc5-4da8-a1a6-278cfdf11076,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-22202,debit,false,,2025-07-26T13:54:00.000Z,TOTTUS,Alimentación · TOTTUS,Alimentación
+97d732d3-2c08-43f3-91cb-521604662a9c,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-3597,debit,false,,2025-07-28T00:03:00.000Z,STEAM,Entretenimiento · STEAM,Entretenimiento
+5b48938b-3fcf-4217-a7bb-b55491168532,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-17311,debit,false,,2025-08-01T01:59:00.000Z,CAFETERÍA,Restaurantes · CAFETERÍA,Restaurantes
+3af9356f-3f4c-479f-a840-d4fedba552ba,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-2614,debit,false,,2025-07-31T13:11:00.000Z,AHUMADA,Salud · AHUMADA,Salud
+fde05558-4d46-40a5-ad8b-e8991fd833ac,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-22458,debit,false,,2025-08-02T20:28:00.000Z,LIDER,Alimentación · LIDER,Alimentación
+1c086e75-50ed-49c7-9520-2d499a0872f7,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-3878,debit,false,,2025-08-03T14:41:00.000Z,JUMBO,Alimentación · JUMBO,Alimentación
+2f3012c5-4b4f-4f42-8d40-b39da8e92ee2,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-14960,debit,false,,2025-08-03T16:32:00.000Z,DOMINO'S,Restaurantes · DOMINO'S,Restaurantes
+96b7aabb-b9e4-4c73-b4c8-0063cc0dc305,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-11379,debit,false,,2025-08-03T15:04:00.000Z,CONSULTA MÉDICA,Salud · CONSULTA MÉDICA,Salud
+e311498e-4c96-465f-a044-b56e21e1e9b2,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-7920,debit,false,,2025-08-04T14:52:00.000Z,CONSULTA MÉDICA,Salud · CONSULTA MÉDICA,Salud
+d8d639b6-a9f8-4fd7-b9c2-2c748232f627,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-24224,debit,false,,2025-08-05T00:07:00.000Z,ENEL,Servicios · ENEL,Servicios
+2419f4b5-1f56-4d0c-9d47-18ebb93e5fbb,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-7568,debit,false,,2025-08-04T13:37:00.000Z,CABIFY,Transporte · CABIFY,Transporte
+4e61bdf2-261d-459e-8533-b78f89ae3730,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-14543,debit,false,,2025-08-05T14:49:00.000Z,SPOTIFY,Entretenimiento · SPOTIFY,Entretenimiento
+de56cf3b-ea36-4c26-92db-1f8caaa4af41,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-26842,debit,false,,2025-08-05T21:50:00.000Z,CONSULTA MÉDICA,Salud · CONSULTA MÉDICA,Salud
+7b0f53f5-a6fe-4098-8d19-ff63355dafd6,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-19278,debit,false,,2025-08-05T20:45:00.000Z,AGUAS,Servicios · AGUAS,Servicios
+91ebc7a1-0204-44dc-ba90-b436dafb7f06,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-16100,debit,false,,2025-08-10T22:14:00.000Z,TOTTUS,Alimentación · TOTTUS,Alimentación
+ebdb5639-fd5e-4492-9231-144c5dcbb3b6,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-22618,debit,false,,2025-08-10T22:52:00.000Z,MCDONALD'S,Restaurantes · MCDONALD'S,Restaurantes
+adfbdb43-a8c0-4edc-a803-4c2b917170a4,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-22970,debit,false,,2025-08-12T00:03:00.000Z,UNIMARC,Alimentación · UNIMARC,Alimentación
+44211599-9c00-4383-b704-52e1c5d97335,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-7558,debit,false,,2025-08-12T01:02:00.000Z,NETFLIX,Entretenimiento · NETFLIX,Entretenimiento
+987efa6d-559d-43d1-9499-9c7aec4ae9e1,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-7577,debit,false,,2025-08-12T17:12:00.000Z,MINIMARKET,Alimentación · MINIMARKET,Alimentación
+324ce9b8-1059-4beb-9e09-162dad6dbb26,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-6135,debit,false,,2025-08-13T02:52:00.000Z,TOTTUS,Alimentación · TOTTUS,Alimentación
+c2cfe24f-0fa7-4a96-b350-1197fd78c889,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-8039,debit,false,,2025-08-12T13:22:00.000Z,AHUMADA,Salud · AHUMADA,Salud
+678bc36b-755f-49c2-b78b-44a8909e58b4,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-23922,debit,false,,2025-08-13T17:58:00.000Z,MCDONALD'S,Restaurantes · MCDONALD'S,Restaurantes
+69fb83f2-2daf-4c4a-8209-cf5015e0ea63,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15984,debit,false,,2025-08-13T22:54:00.000Z,AHUMADA,Salud · AHUMADA,Salud
+65503bb0-5fba-45c5-94af-bee70e9f2df9,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-8038,debit,false,,2025-08-15T23:10:00.000Z,KFC,Restaurantes · KFC,Restaurantes
+7b22aab2-9498-42bd-993f-57397cd9b655,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-14077,debit,false,,2025-08-17T16:57:00.000Z,SPOTIFY,Entretenimiento · SPOTIFY,Entretenimiento
+92eaf342-a636-4039-bd5b-7bf0a4f1fab9,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15617,debit,false,,2025-08-17T16:21:00.000Z,CONSULTA MÉDICA,Salud · CONSULTA MÉDICA,Salud
+585788c2-2da4-4304-895b-15498e67bd2a,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-11231,debit,false,,2025-08-20T18:37:00.000Z,MCDONALD'S,Restaurantes · MCDONALD'S,Restaurantes
+9e2f93cd-eba2-4595-8bea-b349159b5437,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-43214,debit,false,,2025-08-22T20:40:00.000Z,MOVISTAR,Servicios · MOVISTAR,Servicios
+bbadad31-5c52-4919-a78e-f87aa32fe8f2,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-31222,debit,false,,2025-08-26T20:18:00.000Z,JUMBO,Alimentación · JUMBO,Alimentación
+0ed82029-4fc0-4e1a-a283-214cd6c9599e,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-5536,debit,false,,2025-08-29T17:36:00.000Z,MCDONALD'S,Restaurantes · MCDONALD'S,Restaurantes
+c26bdcc0-8c36-4b8c-b51c-c168985e5568,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-17833,debit,false,,2025-08-31T01:51:00.000Z,CINEMARK,Entretenimiento · CINEMARK,Entretenimiento
+79bd8f48-be32-448b-a9a7-3a70dd6b1aac,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-9404,debit,false,,2025-08-31T20:26:00.000Z,NETFLIX,Entretenimiento · NETFLIX,Entretenimiento
+56abf94a-7982-434e-af82-748a858baca3,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-20927,debit,false,,2025-08-31T14:14:00.000Z,VTR,Servicios · VTR,Servicios
+c787cc59-da9b-49d0-a826-abfb4ace8681,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-1252,debit,false,,2025-09-01T22:16:00.000Z,DIDI,Transporte · DIDI,Transporte
+4cf416ab-0d10-45c9-beeb-b8e93cf2dda0,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-18853,debit,false,,2025-09-01T16:01:00.000Z,CLARO,Servicios · CLARO,Servicios
+cf9b178f-684e-4851-bb60-d1a6a51cc1f7,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-10309,debit,false,,2025-09-01T18:33:00.000Z,SPOTIFY,Entretenimiento · SPOTIFY,Entretenimiento
+dafcc847-14ad-4951-a5d2-92ed735d10ba,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-6985,debit,false,,2025-09-03T22:36:00.000Z,UBER,Transporte · UBER,Transporte
+8a1d982c-88ea-4713-88b3-3c872e9e2fb9,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-48329,debit,false,,2025-09-03T20:55:00.000Z,CLARO,Servicios · CLARO,Servicios
+60099cb0-0fad-4f44-93b0-14793ca528aa,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-28467,debit,false,,2025-09-05T02:38:00.000Z,SANTA ISABEL,Alimentación · SANTA ISABEL,Alimentación
+fabadeb5-00f7-4956-9382-078e9697e93b,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-20198,debit,false,,2025-09-04T19:01:00.000Z,AHUMADA,Salud · AHUMADA,Salud
+63b6616f-5130-4571-997e-334d8118ebfe,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-24761,debit,false,,2025-09-06T19:59:00.000Z,SALCOBRAND,Salud · SALCOBRAND,Salud
+926bb89a-9253-4fbd-8cb9-ce1b51b698e8,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-11720,debit,false,,2025-09-07T19:05:00.000Z,CONSULTA MÉDICA,Salud · CONSULTA MÉDICA,Salud
+40b48ad2-e11d-4f5a-812f-c2a4bae274c5,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-58102,debit,false,,2025-09-08T22:20:00.000Z,ENEL,Servicios · ENEL,Servicios
+a6066a64-f55a-4508-8522-1a0e3e70251a,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-5571,debit,false,,2025-09-09T18:48:00.000Z,TOTTUS,Alimentación · TOTTUS,Alimentación
+9fd60e2e-a12f-491b-8a1b-7fe0700af1a2,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-13791,debit,false,,2025-09-10T13:06:00.000Z,DOMINO'S,Restaurantes · DOMINO'S,Restaurantes
+e190208e-afbe-454c-b371-57889c171d69,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-12034,debit,false,,2025-09-10T17:49:00.000Z,SHELL,Transporte · SHELL,Transporte
+f257fc5e-99ab-48a7-8bea-bb9a2b530e35,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-10862,debit,false,,2025-09-11T20:33:00.000Z,ENTEL,Servicios · ENTEL,Servicios
+855fabc0-0537-48ab-89da-20d3ac067005,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-8600,debit,false,,2025-09-12T00:46:00.000Z,CABIFY,Transporte · CABIFY,Transporte
+5df6d1f2-0cee-4d46-beb5-dc83a4d9601e,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-13344,debit,false,,2025-09-12T13:53:00.000Z,SALCOBRAND,Salud · SALCOBRAND,Salud
+c7a87787-3416-4248-83f9-bf65461f9045,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-14590,debit,false,,2025-09-12T19:14:00.000Z,SHELL,Transporte · SHELL,Transporte
+97816a01-e092-49d2-b19e-e4eb56d67c9b,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15434,debit,false,,2025-09-13T13:09:00.000Z,SANTA ISABEL,Alimentación · SANTA ISABEL,Alimentación
+7d5c24be-890a-4930-a95e-1e2b7ac5eac7,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-11862,debit,false,,2025-09-13T23:33:00.000Z,DIDI,Transporte · DIDI,Transporte
+cb43bfc3-1dec-493c-8827-2bf8b89348e5,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-4105,debit,false,,2025-09-14T16:02:00.000Z,NETFLIX,Entretenimiento · NETFLIX,Entretenimiento
+1070c900-2ab3-4129-8bfa-9b6424841c6a,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-5533,debit,false,,2025-09-14T21:09:00.000Z,PETROBRAS,Transporte · PETROBRAS,Transporte
+f20e3d13-402c-4607-85a6-b1edd82cf256,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-4194,debit,false,,2025-09-17T20:59:00.000Z,PETROBRAS,Transporte · PETROBRAS,Transporte
+8e36d79e-a5db-4f08-9745-4069e74853a7,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-6788,debit,false,,2025-09-19T21:28:00.000Z,CINEMARK,Entretenimiento · CINEMARK,Entretenimiento
+6ec226fa-7070-4966-b308-b4e10b27d696,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-18636,debit,false,,2025-09-21T18:44:00.000Z,STEAM,Entretenimiento · STEAM,Entretenimiento
+4de2b581-6770-4dcd-9852-b5223462a4ac,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-14014,debit,false,,2025-09-21T23:35:00.000Z,COPEC,Transporte · COPEC,Transporte
+35ee294a-50ae-48d3-b0cd-d7bb8802f62c,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-17723,debit,false,,2025-09-22T23:51:00.000Z,CRUZ VERDE,Salud · CRUZ VERDE,Salud
+559969ae-897e-4dc1-8bee-0cf0bb5448eb,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-1917,debit,false,,2025-09-22T14:11:00.000Z,RED METRO,Transporte · RED METRO,Transporte
+1ff66a7a-819d-466a-9223-aee01a1bd5b0,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-16100,debit,false,,2025-09-22T15:52:00.000Z,STEAM,Entretenimiento · STEAM,Entretenimiento
+8161b3e5-d687-4857-8ef3-e33d0dc9fbf3,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-6932,debit,false,,2025-09-23T16:43:00.000Z,STEAM,Entretenimiento · STEAM,Entretenimiento
+45098cbc-34d3-48fa-8408-eaa95dd42051,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-10103,debit,false,,2025-09-24T00:25:00.000Z,SHELL,Transporte · SHELL,Transporte
+6cf96a7e-8d91-4184-b6f2-127caa54af56,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-11940,debit,false,,2025-09-24T00:42:00.000Z,COPEC,Transporte · COPEC,Transporte
+43ccf082-c03f-41df-bfa5-9dbd6d55b480,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-20639,debit,false,,2025-09-24T16:28:00.000Z,KFC,Restaurantes · KFC,Restaurantes
+7ee05411-addb-4423-b3cc-02736a286ef3,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-13835,debit,false,,2025-09-26T19:18:00.000Z,CINEMARK,Entretenimiento · CINEMARK,Entretenimiento
+8f0a40b2-68b4-4ff9-a2d6-f219eb236b2a,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-21234,debit,false,,2025-09-26T22:18:00.000Z,MINIMARKET,Alimentación · MINIMARKET,Alimentación
+010a75f8-7b2a-4212-99a4-0ea7ad2a6abc,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-12708,debit,false,,2025-09-26T21:11:00.000Z,SALCOBRAND,Salud · SALCOBRAND,Salud
+d9f43281-960d-447f-b1c8-aafb421bf86f,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-14689,debit,false,,2025-09-27T14:48:00.000Z,ENTEL,Servicios · ENTEL,Servicios
+a3abae14-98bc-4ddc-8848-628ae75b051f,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-19409,debit,false,,2025-09-27T13:58:00.000Z,AHUMADA,Salud · AHUMADA,Salud
+f5c6d0d1-90c8-419d-b50a-f9266ef025ae,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-4786,debit,false,,2025-09-28T00:19:00.000Z,DIDI,Transporte · DIDI,Transporte
+61df7d18-4864-4742-aa26-e5c9ff8a5670,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-12431,debit,false,,2025-09-28T15:47:00.000Z,UBER,Transporte · UBER,Transporte
+ef46f734-16f2-4af2-80a2-57f7d1172845,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-19474,debit,false,,2025-09-29T20:58:00.000Z,SUSHI,Restaurantes · SUSHI,Restaurantes
+cbbbcdc3-3457-49e2-ba8a-fc53e66fd4e1,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15968,debit,false,,2025-09-30T13:26:00.000Z,AHUMADA,Salud · AHUMADA,Salud
+c4b4e7e6-995b-404c-a3e6-f28f2cd7f918,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-53215,debit,false,,2025-09-30T13:47:00.000Z,WOM,Servicios · WOM,Servicios
+e803b9f1-734f-41c0-9a01-2c5fbdac4910,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-8360,debit,false,,2025-10-01T17:18:00.000Z,CAFETERÍA,Restaurantes · CAFETERÍA,Restaurantes
+404ac5a6-534b-4506-87b8-ec0576517b2d,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-10594,debit,false,,2025-10-02T20:39:00.000Z,CINEHOYTS,Entretenimiento · CINEHOYTS,Entretenimiento
+9c8d3a1c-5b51-4138-b1e7-657810f521df,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-12214,debit,false,,2025-10-03T12:23:00.000Z,MOVISTAR,Servicios · MOVISTAR,Servicios
+10328d1f-00cc-4cee-a30f-31cf61f6ef06,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-3863,debit,false,,2025-10-03T14:12:00.000Z,RED METRO,Transporte · RED METRO,Transporte
+a8c0eec0-af9a-4ca9-a8e9-9688584e06ef,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-24122,debit,false,,2025-10-03T18:06:00.000Z,CONSULTA MÉDICA,Salud · CONSULTA MÉDICA,Salud
+f9117c57-c9a7-4bd4-b891-2ecd85065791,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-18005,debit,false,,2025-10-04T19:34:00.000Z,STEAM,Entretenimiento · STEAM,Entretenimiento
+27f779f6-5d8a-4a04-b713-9529befc71b0,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-13784,debit,false,,2025-10-04T13:18:00.000Z,CINEMARK,Entretenimiento · CINEMARK,Entretenimiento
+cd2a00d8-7a7a-49d4-bd94-073b02ef3b49,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-6231,debit,false,,2025-10-05T20:33:00.000Z,SALCOBRAND,Salud · SALCOBRAND,Salud
+84dcae23-7ea6-4df5-8dcb-130376d96f88,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-1092,debit,false,,2025-10-06T01:02:00.000Z,RED METRO,Transporte · RED METRO,Transporte
+fabb41ba-7caf-4234-bd68-bbf07d5ab6fc,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-5470,debit,false,,2025-10-05T23:18:00.000Z,KFC,Restaurantes · KFC,Restaurantes
+359db42a-605e-4daf-9a2e-7953493fa7e9,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-3520,debit,false,,2025-10-06T22:00:00.000Z,CABIFY,Transporte · CABIFY,Transporte
+30013682-ff0f-4d15-82ca-ab8b2165c079,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-32045,debit,false,,2025-10-09T14:42:00.000Z,ENEL,Servicios · ENEL,Servicios
+a0ca4fa7-cc7e-4ba6-a6e2-20273ed57c70,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-31283,debit,false,,2025-10-09T23:49:00.000Z,SANTA ISABEL,Alimentación · SANTA ISABEL,Alimentación
+6370a842-0bcd-40ec-b970-0f6aa0372329,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-13638,debit,false,,2025-10-09T13:53:00.000Z,SPOTIFY,Entretenimiento · SPOTIFY,Entretenimiento
+835cf376-52c4-4271-8de1-94c8699b36be,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-23486,debit,false,,2025-10-12T01:02:00.000Z,MCDONALD'S,Restaurantes · MCDONALD'S,Restaurantes
+14cbe8b8-3335-4dea-854a-3f7e43a28fb9,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-8870,debit,false,,2025-10-11T16:28:00.000Z,DIDI,Transporte · DIDI,Transporte
+7f2dc525-afd7-4b61-a2d7-15bfda28d9ec,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-19958,debit,false,,2025-10-12T19:21:00.000Z,SPOTIFY,Entretenimiento · SPOTIFY,Entretenimiento
+77c42397-728a-4145-9db9-56e25e91eec5,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-20200,debit,false,,2025-10-14T22:45:00.000Z,AHUMADA,Salud · AHUMADA,Salud
+09544a66-2568-407e-82da-68dbe506d9fb,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15567,debit,false,,2025-10-15T16:45:00.000Z,MINIMARKET,Alimentación · MINIMARKET,Alimentación
+720234ff-6ae9-4fa2-8d3f-af96c504c3e1,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-21137,debit,false,,2025-10-16T01:11:00.000Z,CRUZ VERDE,Salud · CRUZ VERDE,Salud
+105bfe73-8677-46a2-95d9-7ea77886532b,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-7675,debit,false,,2025-10-16T17:46:00.000Z,CINEHOYTS,Entretenimiento · CINEHOYTS,Entretenimiento
+0ed9b871-6625-440b-a7f0-f9b1c66d8877,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-34200,debit,false,,2025-10-16T12:01:00.000Z,CLARO,Servicios · CLARO,Servicios
+6833d9b0-cc2a-4940-8e08-851483b2d878,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-20676,debit,false,,2025-10-18T17:41:00.000Z,AHUMADA,Salud · AHUMADA,Salud
+43bf108b-b1e1-4f5a-9e61-e59613c6da90,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-7465,debit,false,,2025-10-19T21:45:00.000Z,NETFLIX,Entretenimiento · NETFLIX,Entretenimiento
+2d8a92c1-1179-409e-89d4-bec8bdabccb6,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-53188,debit,false,,2025-10-19T15:33:00.000Z,WOM,Servicios · WOM,Servicios
+618e0b04-33b3-49f0-af15-dd93419eaba4,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-10263,debit,false,,2025-10-19T20:04:00.000Z,SHELL,Transporte · SHELL,Transporte
+761acb5b-e7d6-4973-95df-96cace3d4bde,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-17139,debit,false,,2025-10-20T14:47:00.000Z,DOMINO'S,Restaurantes · DOMINO'S,Restaurantes
+d22f1983-c319-4e3e-92f2-9d8952114bf6,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-9892,debit,false,,2025-10-21T00:14:00.000Z,WOM,Servicios · WOM,Servicios
+6d8f60f9-5e7f-4160-80d0-8bfc93cab79c,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-29272,debit,false,,2025-10-21T19:06:00.000Z,SALCOBRAND,Salud · SALCOBRAND,Salud
+b29e740c-04ce-4631-82ff-163edd33e1dd,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-28458,debit,false,,2025-10-22T13:37:00.000Z,CONSULTA MÉDICA,Salud · CONSULTA MÉDICA,Salud
+4f31a841-f8d9-4493-a5c2-3d91cebb607b,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-9070,debit,false,,2025-10-22T14:59:00.000Z,CRUZ VERDE,Salud · CRUZ VERDE,Salud
+6ddc24f6-265e-42bd-bc4e-ecb9319335b7,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-10255,debit,false,,2025-10-23T12:51:00.000Z,JUMBO,Alimentación · JUMBO,Alimentación
+ce6cb53d-1e24-4650-a427-0841422e853c,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-14851,debit,false,,2025-10-23T19:37:00.000Z,DIDI,Transporte · DIDI,Transporte
+1436ec23-bc18-406f-9d5b-dca0894d12ae,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-21873,debit,false,,2025-10-25T14:46:00.000Z,SUSHI,Restaurantes · SUSHI,Restaurantes
+cdf7c029-e91a-4b44-80d4-7341e12fe3e6,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-10386,debit,false,,2025-10-26T22:54:00.000Z,SPOTIFY,Entretenimiento · SPOTIFY,Entretenimiento
+3baf0533-20c7-4002-963e-094ee5ade38f,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-24916,debit,false,,2025-10-26T14:11:00.000Z,CRUZ VERDE,Salud · CRUZ VERDE,Salud
+033e2fbf-a6b8-4770-a12a-538514d69163,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-8615,debit,false,,2025-10-27T17:41:00.000Z,SUSHI,Restaurantes · SUSHI,Restaurantes
+ce235947-9486-428b-b682-ba3f6477b0b2,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-32973,debit,false,,2025-10-28T01:43:00.000Z,TOTTUS,Alimentación · TOTTUS,Alimentación
+e4544f2d-4083-4ff4-82cd-e10cd35ffbb8,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-26203,debit,false,,2025-10-29T13:29:00.000Z,TOTTUS,Alimentación · TOTTUS,Alimentación
+ab5606c3-107e-4834-9c07-3b191930d5aa,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-19403,debit,false,,2025-10-29T14:41:00.000Z,CINEMARK,Entretenimiento · CINEMARK,Entretenimiento
+78825475-691a-4eaf-a9e8-bd593c563153,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-2113,debit,false,,2025-11-01T15:09:00.000Z,SHELL,Transporte · SHELL,Transporte
+fef73c50-1d96-4a8f-a640-e3656f34b167,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-6068,debit,false,,2025-11-01T19:36:00.000Z,SALCOBRAND,Salud · SALCOBRAND,Salud
+993d422b-01d0-4bb8-b3ef-37e60969aaa0,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-5663,debit,false,,2025-11-03T22:25:00.000Z,CINEHOYTS,Entretenimiento · CINEHOYTS,Entretenimiento
+d4c9b1bc-c29d-4cc3-b97c-00776f98aff4,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-7471,debit,false,,2025-11-04T13:03:00.000Z,NETFLIX,Entretenimiento · NETFLIX,Entretenimiento
+38b8e1be-31f7-428c-a77d-4611b5a15102,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-18977,debit,false,,2025-11-04T16:33:00.000Z,MCDONALD'S,Restaurantes · MCDONALD'S,Restaurantes
+9e02b7b4-8d54-4e75-b920-b12c3d49ab3c,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-47110,debit,false,,2025-11-05T19:01:00.000Z,ENEL,Servicios · ENEL,Servicios
+2b7392b1-da42-4eb1-90b0-ed1c3cc36f0b,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-23703,debit,false,,2025-11-05T19:42:00.000Z,SALCOBRAND,Salud · SALCOBRAND,Salud
+55b7c731-7bd9-4c44-8cde-b1af63519ad6,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-13020,debit,false,,2025-11-05T15:00:00.000Z,CRUZ VERDE,Salud · CRUZ VERDE,Salud
+4eafca3a-9eac-444b-a0a4-02fef2d57392,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-4605,debit,false,,2025-11-06T21:59:00.000Z,DIDI,Transporte · DIDI,Transporte
+113d193f-61a5-4865-92d3-4742130604ea,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-32344,debit,false,,2025-11-06T17:40:00.000Z,UNIMARC,Alimentación · UNIMARC,Alimentación
+866f0fce-60fe-4296-8af5-17c893d00485,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-4873,debit,false,,2025-11-07T16:20:00.000Z,DOMINO'S,Restaurantes · DOMINO'S,Restaurantes
+582781db-0380-4ae3-aa04-31d34110a7d4,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-9180,debit,false,,2025-11-08T18:51:00.000Z,WOM,Servicios · WOM,Servicios
+a93833e5-9874-48be-8cca-73f83a0a525d,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-36921,debit,false,,2025-11-09T11:30:00.000Z,WOM,Servicios · WOM,Servicios
+7f1ee8c7-d5b9-4767-ab3a-5f4852f7419d,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-3865,debit,false,,2025-11-09T19:36:00.000Z,CONSULTA MÉDICA,Salud · CONSULTA MÉDICA,Salud
+bc798efc-190d-445d-89ad-8319b76a4e66,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-3389,debit,false,,2025-11-11T11:24:00.000Z,DIDI,Transporte · DIDI,Transporte
+957e60c8-7f3d-4658-9177-809e18dd538e,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-15001,debit,false,,2025-11-11T18:52:00.000Z,CAFETERÍA,Restaurantes · CAFETERÍA,Restaurantes
+aade0383-b561-470b-91f3-6c45ba39a78e,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-5892,debit,false,,2025-11-12T23:34:00.000Z,MCDONALD'S,Restaurantes · MCDONALD'S,Restaurantes
+48bb110c-bc41-4949-8599-8e960be14581,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-4309,debit,false,,2025-11-12T12:12:00.000Z,DOMINO'S,Restaurantes · DOMINO'S,Restaurantes
+71cc7fc3-788d-4eb7-9d31-5062b1ed023c,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-12393,debit,false,,2025-11-15T13:31:00.000Z,SANTA ISABEL,Alimentación · SANTA ISABEL,Alimentación
+d751e962-b85b-4376-a82f-07ac6e09698b,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-11939,debit,false,,2025-11-17T00:27:00.000Z,CRUZ VERDE,Salud · CRUZ VERDE,Salud
+1d7f7e04-1ef5-4ce9-9905-80045c16bfde,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-24996,debit,false,,2025-11-16T16:05:00.000Z,UNIMARC,Alimentación · UNIMARC,Alimentación
+5a73c338-0961-482b-b044-dc10fc17ed19,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-4345,debit,false,,2025-11-18T15:19:00.000Z,NETFLIX,Entretenimiento · NETFLIX,Entretenimiento
+9cf95687-f338-4330-8cd0-6f3cf1dad117,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-12343,debit,false,,2025-11-18T21:53:00.000Z,SPOTIFY,Entretenimiento · SPOTIFY,Entretenimiento
+807c0907-3998-4af4-9db9-d2a3cb1141e5,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-6554,debit,false,,2025-11-20T01:04:00.000Z,CONSULTA MÉDICA,Salud · CONSULTA MÉDICA,Salud
+3cecd087-a046-4e25-b76f-f64511f52805,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-12918,debit,false,,2025-11-19T20:35:00.000Z,STEAM,Entretenimiento · STEAM,Entretenimiento
+3ed40b4e-9f0b-4cde-9f78-1e82e0d17725,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-36488,debit,false,,2025-11-19T20:54:00.000Z,AGUAS,Servicios · AGUAS,Servicios
+4f684aff-525e-4cef-8ab1-485b00d7e094,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-8274,debit,false,,2025-11-20T22:24:00.000Z,CINEHOYTS,Entretenimiento · CINEHOYTS,Entretenimiento
+17750158-74c2-44d3-9351-23b658a24238,cf62dab1-0a8f-484a-b45b-ddee473d9bbe,CUENTA_VISTA,CLP,-14143,debit,false,,2025-11-21T01:17:00.000Z,CINEMARK,Entretenimiento · CINEMARK,Entretenimiento

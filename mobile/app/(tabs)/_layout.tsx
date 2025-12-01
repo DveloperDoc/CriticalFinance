@@ -1,3 +1,4 @@
+// mobile/app/(tabs)/_layout.tsx
 import React, { useEffect, useState } from 'react';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
 import { Tabs, router } from 'expo-router';
@@ -7,7 +8,7 @@ import { colors } from '@/theme';
 import { useAuth } from '@/providers/AuthProvider';
 
 export default function TabsLayout() {
-  const { user, token, loading, logout } = useAuth();
+  const { token, loading, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Redirección automática si no hay sesión
@@ -40,6 +41,7 @@ export default function TabsLayout() {
           tabBarInactiveTintColor: colors.tabInactive,
         }}
       >
+        {/* INICIO */}
         <Tabs.Screen
           name="index"
           options={{
@@ -50,6 +52,16 @@ export default function TabsLayout() {
           }}
         />
 
+        {/* ALERTAS → OCULTA EN LA BARRA INFERIOR */}
+        <Tabs.Screen
+          name="alertas"
+          options={{
+            href: null,        // esto la saca del tab bar
+            title: 'Alertas',  // sigue teniendo título interno
+          }}
+        />
+
+        {/* CUENTA: abre menú flotante */}
         <Tabs.Screen
           name="cuenta"
           options={{
@@ -60,23 +72,32 @@ export default function TabsLayout() {
           }}
           listeners={{
             tabPress: (e) => {
-              // evitamos la navegación normal y abrimos el menú
               e.preventDefault();
               setMenuOpen(true);
             },
           }}
         />
 
-        {/* estas siguen ocultas, como ya tenías */}
+        {/* PANTALLAS OCULTAS DE LA BARRA (sólo navegación programática) */}
         <Tabs.Screen name="ahorro" options={{ href: null, title: 'Ahorro' }} />
-        <Tabs.Screen name="movimientos" options={{ href: null, title: 'Movimientos' }} />
-        <Tabs.Screen name="movimiento/[id]" options={{ href: null, title: 'Detalle' }} />
+        <Tabs.Screen
+          name="movimientos"
+          options={{ href: null, title: 'Movimientos' }}
+        />
+        <Tabs.Screen
+          name="movimiento/[id]"
+          options={{ href: null, title: 'Detalle' }}
+        />
+        <Tabs.Screen
+          name="anomalias"
+          options={{ href: null, title: 'Inusuales' }}
+        />
       </Tabs>
 
-      {/* MENÚ flotante ligado al layout */}
+      {/* MENÚ flotante de Cuenta */}
       {menuOpen && (
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          {/* fondo clickeable para cerrar */}
+          {/* Fondo clickeable para cerrar */}
           <Pressable
             style={StyleSheet.absoluteFill}
             onPress={() => setMenuOpen(false)}
@@ -106,8 +127,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
     alignItems: 'flex-end',
-    paddingRight: 24,   // distancia al borde derecho
-    paddingBottom: 80,  // altura sobre la barra de tabs (ajusta a gusto)
+    paddingRight: 24,
+    paddingBottom: 80,
   },
   menu: {
     backgroundColor: colors.surface,

@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
 import { setAuthToken, api } from '@/api/client';
 import { login as loginApi } from '@/api/auth';
+import { registerPushToken } from '@/notifications/registerPushToken';
 
 type User = { id: string; email: string } | null;
 
@@ -57,13 +58,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     const { access_token, user: apiUser } = await loginApi(email, password);
 
-    // Guardar token
+    // Guardar token y configurarlo en axios
     await AsyncStorage.setItem(STORAGE.token, access_token);
     setAuthToken(access_token);
     setToken(access_token);
 
     let finalUser: User = apiUser ?? null;
 
+    // Si el /auth/login no devuelve user, lo obtenemos desde /me
     if (!finalUser) {
       try {
         const me = await api.get('/me');
@@ -73,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Persistir usuario
     await AsyncStorage.setItem(
       STORAGE.user,
       finalUser ? JSON.stringify(finalUser) : '',
@@ -80,7 +83,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(finalUser);
 
+    // Limpiar cache de react-query para evitar datos antiguos
     queryClient.clear();
+
+    // Registrar token de notificaciones (no bloqueante)
+    registerPushToken().catch((err) =>
+      console.error('Error al registrar push token', err),
+    );
   };
 
   // Logout

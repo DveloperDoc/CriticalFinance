@@ -3,21 +3,28 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { colors } from '@/theme';
 
-type ActiveTab = 'inicio' | 'ahorro' | 'movimientos';
+type ActiveTab = 'inicio' | 'ahorro' | 'movimientos' | 'anomalias';
 
 export default function ChipsNav({ active }: { active?: ActiveTab }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Si no viene prop "active", deducimos desde la ruta actual
   const isInicio =
     active === 'inicio' ||
     pathname === '/(tabs)' ||
     pathname === '/(tabs)/index';
+
   const isAhorro =
-    active === 'ahorro' || pathname === '/(tabs)/ahorro';
+    active === 'ahorro' ||
+    pathname === '/(tabs)/ahorro';
+
   const isMovs =
-    active === 'movimientos' || pathname === '/(tabs)/movimientos';
+    active === 'movimientos' ||
+    pathname === '/(tabs)/movimientos';
+
+  const isAnom =
+    active === 'anomalias' ||
+    pathname === '/(tabs)/anomalias';
 
   return (
     <View style={s.row}>
@@ -47,6 +54,15 @@ export default function ChipsNav({ active }: { active?: ActiveTab }) {
           Movimientos
         </Text>
       </Pressable>
+
+      <Pressable
+        onPress={() => router.navigate('/(tabs)/anomalias')}
+        style={[s.chip, isAnom ? s.chipActive : s.chipInactive]}
+      >
+        <Text style={[s.textBase, isAnom ? s.textActive : s.textInactive]}>
+          Inusuales
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -54,14 +70,15 @@ export default function ChipsNav({ active }: { active?: ActiveTab }) {
 const s = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 16,
-    marginBottom: 8,
-    marginTop: 4,
+    flexWrap: 'wrap',
+    gap: 8,
+    // AppHeader ya tiene paddingHorizontal; aquí solo margen
+    marginTop: 10,
+    marginBottom: 6,
   },
   chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
   },
   chipActive: {
@@ -78,13 +95,13 @@ const s = StyleSheet.create({
   },
   textBase: {
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 13,
   },
   textActive: {
     color: '#fff',
   },
   textInactive: {
     color: colors.text,
-    opacity: 0.8,
+    opacity: 0.85,
   },
 });

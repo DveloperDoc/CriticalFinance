@@ -13,16 +13,32 @@ import { UsersModule } from './users/users.module';
 // NUEVOS MÓDULOS
 import { AccountsModule } from './accounts/accounts.module';
 import { SavingsModule } from './savings/savings.module';
+import { BudgetsModule } from './budgets/budgets.module';
+import { CategoriesModule } from './categories/categories.module';
+import { AlertsModule } from './alerts/alerts.module';
+
+// ML MODULE
+import { MlModule } from './ml/ml.module';
+
+// Notifications
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }), // .env disponible en todo el proyecto
+    ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
-    AuthModule,           // autenticación JWT
-    UsersModule,          // gestión de usuarios
-    AccountsModule,       // cuentas bancarias
-    TransactionsModule,   // movimientos / transacciones
-    SavingsModule,        // reglas de ahorro + alertas
+    AuthModule,
+    UsersModule,
+
+    AccountsModule,
+    TransactionsModule,
+    SavingsModule,
+    BudgetsModule,
+    CategoriesModule,
+
+    MlModule,
+    NotificationsModule,
+    AlertsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

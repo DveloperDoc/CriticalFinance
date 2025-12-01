@@ -13,9 +13,10 @@ import { useRouter } from 'expo-router';
 import { api } from '@/api/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { fmtCLP } from '@/utils/format';
-import { colors } from '@/theme'; // << importante
+import { colors } from '@/theme';
 
 type Category = { id: string; name: string; color?: string | null } | null;
+
 type Tx = {
   id: string;
   merchant?: string | null;
@@ -23,6 +24,12 @@ type Tx = {
   valueCents: number;
   category?: Category;
   bookedAt: string;
+
+  // ML
+  categoryId?: string | null;
+  mlPredictedCategoryId?: string | null;
+  mlPredictedCategory?: Category;
+  mlLabelSource?: 'model' | 'manual' | 'imported' | null;
 };
 
 const normalize = (raw: any): Tx[] => {
@@ -46,7 +53,8 @@ export default function Movimientos() {
     refetch,
     isRefetching,
   } = useQuery<Tx[]>({
-    queryKey: ['transactions', 'list'],
+    // clave simple para que invalidateQueries(['transactions']) funcione bien
+    queryKey: ['transactions'],
     queryFn: async () => {
       const r = await api.get('/transactions');
       return normalize(r.data);
@@ -64,11 +72,34 @@ export default function Movimientos() {
         const isDebit = raw < 0;
         const abs = Math.abs(raw);
 
+        const fecha = tx.bookedAt?.slice(0, 10) || '';
+        const title = tx.merchant || tx.description || 'Sin descripción';
+
+        const tieneSugerenciaIA =
+          !!tx.mlPredictedCategory &&
+          !!tx.mlPredictedCategoryId &&
+          tx.mlLabelSource === 'model';
+
+        const estaConfirmada =
+          !!tx.category && tx.mlLabelSource === 'manual';
+
+        let categoriaTexto = 'Sin categoría';
+        let iaBadgeVisible = false;
+
+        if (tx.category?.name) {
+          categoriaTexto = tx.category.name;
+        } else if (tieneSugerenciaIA) {
+          categoriaTexto = tx.mlPredictedCategory?.name ?? 'Sugerencia IA';
+          iaBadgeVisible = true;
+        }
+
         return {
           id: String(tx.id),
-          title: tx.merchant || tx.description || 'Sin descripción',
-          subtitle: tx.category?.name || 'Sin categoría',
-          date: tx.bookedAt?.slice(0, 10) || '',
+          title,
+          fecha,
+          categoriaTexto,
+          iaBadgeVisible,
+          estaConfirmada,
           isDebit,
           amountFmt: fmtCLP(abs),
         };
@@ -76,8 +107,21 @@ export default function Movimientos() {
     [list],
   );
 
-  if (!enabled) return <View style={s.center}><ActivityIndicator /></View>;
-  if (isLoading) return <View style={s.center}><ActivityIndicator /></View>;
+  if (!enabled) {
+    return (
+      <View style={s.center}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <View style={s.center}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
 
   if (isError) {
     const status = (error as any)?.response?.status;
@@ -87,7 +131,10 @@ export default function Movimientos() {
       'Error cargando movimientos';
     return (
       <View style={s.center}>
-        <Text style={s.err}>{status ? `${status} · ` : ''}{msg}</Text>
+        <Text style={s.err}>
+          {status ? `${status} · ` : ''}
+          {msg}
+        </Text>
       </View>
     );
   }
@@ -102,12 +149,25 @@ export default function Movimientos() {
           <TouchableOpacity
             style={s.row}
             onPress={() => router.push(`/movimiento/${item.id}`)}
+            activeOpacity={0.85}
           >
             <View style={s.left}>
-              <Text style={s.title}>{item.title}</Text>
-              <Text style={s.subtitle}>
-                {item.subtitle} · {item.date}
-              </Text>
+              <View style={s.iconCircle} />
+              <View style={s.textBlock}>
+                <Text style={s.title}>{item.title}</Text>
+                <View style={s.metaRow}>
+                  <Text style={s.date}>{item.fecha}</Text>
+                  <Text style={s.categoryText}>{item.categoriaTexto}</Text>
+                  {item.iaBadgeVisible && (
+                    <View style={s.iaTag}>
+                      <Text style={s.iaTagText}>IA</Text>
+                    </View>
+                  )}
+                  {item.estaConfirmada && (
+                    <Text style={s.confirmedText}>Confirmado</Text>
+                  )}
+                </View>
+              </View>
             </View>
 
             <Text
@@ -143,7 +203,7 @@ const s = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: colors.background, // consistente con tu layout
+    backgroundColor: colors.background,
   },
 
   center: {
@@ -158,24 +218,72 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
     borderRadius: 12,
-    backgroundColor: colors.surface, // igual que tu menú
+    backgroundColor: colors.surface,
   },
 
-  left: { flexShrink: 1, paddingRight: 12 },
+  left: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+    paddingRight: 12,
+  },
+
+  iconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.card ?? '#111827',
+    marginRight: 10,
+  },
+
+  textBlock: {
+    flexShrink: 1,
+  },
 
   title: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: colors.text,
   },
 
-  subtitle: {
-    fontSize: 12,
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 6,
+  },
+
+  date: {
+    fontSize: 11,
     color: colors.textMuted || '#6b7280',
-    marginTop: 2,
+  },
+
+  categoryText: {
+    fontSize: 11,
+    color: colors.textMuted || '#9ca3af',
+  },
+
+  iaTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: colors.primary ?? '#1d4ed8',
+  },
+
+  iaTagText: {
+    fontSize: 10,
+    color: '#f9fafb',
+    fontWeight: '600',
+  },
+
+  confirmedText: {
+    fontSize: 10,
+    color: colors.success ?? '#22c55e',
+    fontWeight: '600',
   },
 
   amount: {
