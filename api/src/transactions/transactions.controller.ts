@@ -1,3 +1,4 @@
+// api/src/transactions/transactions.controller.ts
 import {
   Body,
   Controller,
@@ -9,6 +10,7 @@ import {
   Param,
   NotFoundException,
   Patch,
+  BadRequestException,
 } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -21,39 +23,51 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 
+  private getUserId(req: any): string {
+    const userId =
+      req.user?.userId ??
+      req.user?.id ??
+      req.user?.sub;
+
+    if (!userId) {
+      throw new BadRequestException('No se pudo determinar el usuario desde el token');
+    }
+
+    return String(userId);
+  }
+
   @Post()
   create(@Req() req: any, @Body() dto: CreateTransactionDto) {
-    const userId = req.user.id as string;
+    const userId = this.getUserId(req);
     return this.transactionsService.create(userId, dto);
   }
 
   @Get()
   findAll(@Req() req: any, @Query() filter: FilterTransactionsDto) {
-    const userId = req.user.id as string;
+    const userId = this.getUserId(req);
     return this.transactionsService.findAll(userId, filter);
   }
 
   // RESUMEN ML
   @Get('ml-summary')
   getMlSummary(@Req() req: any) {
-    const userId = req.user.id as string;
+    const userId = this.getUserId(req);
     return this.transactionsService.getMlSummary(userId);
   }
 
-  // NUEVO: movimientos inusuales / anomalías
+  // Movimientos inusuales / anomalías
   @Get('anomalies')
   getAnomalies(@Req() req: any) {
-    const userId = req.user.id as string;
+    const userId = this.getUserId(req);
     return this.transactionsService.getAnomalies(userId);
   }
 
   // GET /transactions/:id
   @Get(':id')
   async findOne(@Req() req: any, @Param('id') id: string) {
-    const userId = req.user.id as string;
+    const userId = this.getUserId(req);
     const tx = await this.transactionsService.findOne(userId, id);
 
-    // el service ya lanza NotFoundException, esto es redundante pero lo dejo por claridad
     if (!tx) {
       throw new NotFoundException('Transaction not found');
     }
@@ -62,14 +76,25 @@ export class TransactionsController {
   }
 
   // PATCH /transactions/:id/category
-  // Confirmar o cambiar categoría de una transacción
   @Patch(':id/category')
   updateCategory(
     @Req() req: any,
     @Param('id') id: string,
     @Body() dto: UpdateTransactionCategoryDto,
   ) {
-    const userId = req.user.id as string;
+    const userId = this.getUserId(req);
     return this.transactionsService.updateCategory(userId, id, dto);
+  }
+
+  // NUEVO · PATCH /transactions/:id/anomaly-resolved
+  @Patch(':id/anomaly-resolved')
+  setAnomalyResolved(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: { resolved?: boolean },
+  ) {
+    const userId = this.getUserId(req);
+    const resolved = body?.resolved ?? true;
+    return this.transactionsService.setAnomalyResolved(userId, id, resolved);
   }
 }

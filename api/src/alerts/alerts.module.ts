@@ -7,6 +7,6 @@ import { PrismaService } from '../prisma/prisma.service';
 @Module({
   controllers: [AlertsController],
   providers: [AlertsService, PrismaService],
-  exports: [AlertsService], // por si luego quieres inyectarlo en otros módulos
+  exports: [AlertsService], // exportamos el servicio para otros módulos
 })
 export class AlertsModule {}

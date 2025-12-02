@@ -1,4 +1,4 @@
-// app/(tabs)/cuenta.tsx  (o src/screens/AccountScreen.tsx)
+// app/(tabs)/cuenta.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -8,8 +8,9 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { colors } from '@/theme';
 import { api } from '@/api/client';
 import { useAuth } from '@/providers/AuthProvider';
@@ -49,9 +50,11 @@ const CURRENCY_LABEL: Record<Currency, string> = {
 
 export default function AccountScreen() {
   const { token } = useAuth();
+  const queryClient = useQueryClient();
 
   const [bank, setBank] = useState('');
-  const [accountType, setAccountType] = useState<AccountType>('CUENTA_CORRIENTE');
+  const [accountType, setAccountType] =
+    useState<AccountType>('CUENTA_CORRIENTE');
   const [accountNumber, setAccountNumber] = useState('');
   const [holderName, setHolderName] = useState('');
   const [alias, setAlias] = useState('');
@@ -75,7 +78,6 @@ export default function AccountScreen() {
     enabled,
     queryFn: async () => {
       const r = await api.get('/accounts');
-      // normalizamos por si el backend envía { data: [...] }
       const raw = r.data;
       if (Array.isArray(raw)) return raw as Account[];
       if (Array.isArray(raw?.data)) return raw.data as Account[];
@@ -121,7 +123,9 @@ export default function AccountScreen() {
       setAccountNumber('');
       setHolderName('');
       setAlias('');
-      // refrescar lista
+
+      // refrescar lista en cache y pantalla
+      await queryClient.invalidateQueries({ queryKey: ['accounts'] });
       await refetch();
     } catch (e: any) {
       const status = e?.response?.status;
@@ -143,11 +147,23 @@ export default function AccountScreen() {
     }
   };
 
+  // pull-to-refresh → fuerza recarga de /accounts
+  const handleRefresh = async () => {
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      await refetch();
+    } catch (e) {
+      console.warn('Error refrescando cuentas', e);
+    }
+  };
+
   if (!enabled) {
     return (
       <View style={s.center}>
         <Text style={s.title}>Cuenta</Text>
-        <Text style={s.muted}>Inicia sesión para gestionar tus cuentas bancarias.</Text>
+        <Text style={s.muted}>
+          Inicia sesión para gestionar tus cuentas bancarias.
+        </Text>
       </View>
     );
   }
@@ -174,7 +190,17 @@ export default function AccountScreen() {
   }
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={s.content}>
+    <ScrollView
+      style={s.container}
+      contentContainerStyle={s.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={handleRefresh}
+          tintColor={colors.text}
+        />
+      }
+    >
       <Text style={s.title}>Cuenta</Text>
 
       {/* Sección: Cuentas vinculadas */}
@@ -191,6 +217,8 @@ export default function AccountScreen() {
         ) : (
           accounts.map((acc) => {
             const saldo = fmtCLP(acc.balanceCents ?? 0);
+            const isNegative = (acc.balanceCents ?? 0) < 0;
+
             return (
               <View key={acc.id} style={s.accountRow}>
                 <View style={s.accountLeft}>
@@ -203,7 +231,14 @@ export default function AccountScreen() {
                   ) : null}
                 </View>
                 <View style={s.accountRight}>
-                  <Text style={s.accountBalance}>{saldo}</Text>
+                  <Text
+                    style={[
+                      s.accountBalance,
+                      isNegative && s.accountBalanceNegative,
+                    ]}
+                  >
+                    {saldo}
+                  </Text>
                   <Text style={s.accountCurrency}>
                     {CURRENCY_LABEL[acc.currency]}
                   </Text>
@@ -227,7 +262,7 @@ export default function AccountScreen() {
             if (formError) setFormError(null);
           }}
           placeholder="Ej: Banco Estado"
-          placeholderTextColor={colors.mutedText ?? '#6b7280'}
+          placeholderTextColor={colors.textMuted ?? '#6b7280'}
         />
 
         <Text style={s.label}>Nombre titular</Text>
@@ -239,7 +274,7 @@ export default function AccountScreen() {
             if (formError) setFormError(null);
           }}
           placeholder="Nombre como aparece en el banco"
-          placeholderTextColor={colors.mutedText ?? '#6b7280'}
+          placeholderTextColor={colors.textMuted ?? '#6b7280'}
         />
 
         <Text style={s.label}>Número de cuenta</Text>
@@ -252,7 +287,7 @@ export default function AccountScreen() {
           }}
           placeholder="Ej: 123456789"
           keyboardType="numeric"
-          placeholderTextColor={colors.mutedText ?? '#6b7280'}
+          placeholderTextColor={colors.textMuted ?? '#6b7280'}
         />
 
         <Text style={s.label}>Alias (opcional)</Text>
@@ -264,7 +299,7 @@ export default function AccountScreen() {
             if (formError) setFormError(null);
           }}
           placeholder="Ej: Cuenta sueldo"
-          placeholderTextColor={colors.mutedText ?? '#6b7280'}
+          placeholderTextColor={colors.textMuted ?? '#6b7280'}
         />
 
         <Text style={s.label}>Tipo de cuenta</Text>
@@ -278,10 +313,7 @@ export default function AccountScreen() {
           ).map((type) => (
             <Pressable
               key={type}
-              style={[
-                s.chip,
-                accountType === type && s.chipActive,
-              ]}
+              style={[s.chip, accountType === type && s.chipActive]}
               onPress={() => setAccountType(type)}
             >
               <Text
@@ -301,10 +333,7 @@ export default function AccountScreen() {
           {(['CLP', 'USD', 'EUR'] as Currency[]).map((cur) => (
             <Pressable
               key={cur}
-              style={[
-                s.chipSmall,
-                currency === cur && s.chipActive,
-              ]}
+              style={[s.chipSmall, currency === cur && s.chipActive]}
               onPress={() => setCurrency(cur)}
             >
               <Text
@@ -339,7 +368,7 @@ export default function AccountScreen() {
 const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg,
   },
   content: {
     padding: 16,
@@ -347,7 +376,7 @@ const s = StyleSheet.create({
   },
   center: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
@@ -359,21 +388,16 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   muted: {
-    color: colors.mutedText ?? '#6b7280',
+    color: colors.textMuted ?? '#6b7280',
     fontSize: 14,
   },
   card: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 16,
     marginTop: 12,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -401,12 +425,12 @@ const s = StyleSheet.create({
     fontWeight: '600',
   },
   accountMeta: {
-    color: colors.mutedText ?? '#9ca3af',
+    color: colors.textMuted ?? '#9ca3af',
     fontSize: 12,
     marginTop: 2,
   },
   accountAlias: {
-    color: colors.mutedText ?? '#9ca3af',
+    color: colors.textMuted ?? '#9ca3af',
     fontSize: 12,
     marginTop: 2,
     fontStyle: 'italic',
@@ -420,19 +444,22 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  accountBalanceNegative: {
+    color: colors.danger ?? '#ef4444',
+  },
   accountCurrency: {
-    color: colors.mutedText ?? '#9ca3af',
+    color: colors.textMuted ?? '#9ca3af',
     fontSize: 12,
   },
   label: {
-    color: colors.mutedText ?? '#9ca3af',
+    color: colors.textMuted ?? '#9ca3af',
     fontSize: 12,
     textTransform: 'uppercase',
     marginTop: 12,
     marginBottom: 4,
   },
   input: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -469,7 +496,7 @@ const s = StyleSheet.create({
   },
   chipText: {
     fontSize: 12,
-    color: colors.mutedText ?? '#9ca3af',
+    color: colors.textMuted ?? '#9ca3af',
   },
   chipTextActive: {
     color: '#fff',

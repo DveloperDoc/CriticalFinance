@@ -1,8 +1,18 @@
-// src/budgets/dto/create-budget.dto.ts
-import { IsString, IsInt, IsOptional, IsEnum, IsISO8601, Min } from 'class-validator';
+// api/src/budgets/dto/create-budget.dto.ts
+import {
+  IsString,
+  IsInt,
+  IsOptional,
+  IsEnum,
+  IsISO8601,
+  Min,
+} from 'class-validator';
 import { BudgetPeriod } from '@prisma/client';
 
 export class CreateBudgetDto {
+  @IsString()
+  accountId: string;          // <- NUEVO: la cuenta a la que pertenece el presupuesto
+
   @IsString()
   categoryId: string;
 

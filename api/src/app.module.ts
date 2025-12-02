@@ -5,40 +5,51 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
+// Core
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
-import { TransactionsModule } from './transactions/transactions.module';
 import { UsersModule } from './users/users.module';
 
-// NUEVOS MÓDULOS
+// Dominio financiero
 import { AccountsModule } from './accounts/accounts.module';
-import { SavingsModule } from './savings/savings.module';
+import { TransactionsModule } from './transactions/transactions.module';
 import { BudgetsModule } from './budgets/budgets.module';
 import { CategoriesModule } from './categories/categories.module';
+
+// Ahorro + Alertas
+import { SavingsModule } from './savings/savings.module';
 import { AlertsModule } from './alerts/alerts.module';
 
-// ML MODULE
+// ML
 import { MlModule } from './ml/ml.module';
 
-// Notifications
+// Notificaciones push
 import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+
+    // Infra
     PrismaModule,
     AuthModule,
     UsersModule,
 
+    // Core del dominio
     AccountsModule,
     TransactionsModule,
-    SavingsModule,
-    BudgetsModule,
     CategoriesModule,
+    BudgetsModule,
 
-    MlModule,
-    NotificationsModule,
+    // Ahorros + Alertas
+    SavingsModule,
     AlertsModule,
+
+    // ML
+    MlModule,
+
+    // Push / notificaciones
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

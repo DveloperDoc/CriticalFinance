@@ -31,18 +31,28 @@ type Tx = {
   bookedAt: string; // ISO
 };
 
-type Me = { id: string; email: string; accounts: { id: string }[] };
+type MeAccount = {
+  id: string;
+  alias: string | null;
+  bank: string | null;
+  accountNumber: string | null;
+  currency: string;
+  balanceCents: number;
+};
+
+type Me = { id: string; email: string; accounts: MeAccount[] };
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 const normalizeMe = (raw: any): Me => {
   if (!raw) return { id: '', email: '', accounts: [] };
-  if (raw?.id && Array.isArray(raw?.accounts)) return raw as Me;
-  if (raw?.data?.id) return raw.data as Me;
+
+  const base = raw?.data ?? raw;
+
   return {
-    id: raw?.id ?? '',
-    email: raw?.email ?? '',
-    accounts: Array.isArray(raw?.accounts) ? raw.accounts : [],
+    id: base?.id ?? '',
+    email: base?.email ?? '',
+    accounts: Array.isArray(base?.accounts) ? (base.accounts as MeAccount[]) : [],
   };
 };
 
@@ -69,6 +79,21 @@ export default function HomeScreen() {
   });
 
   const accId = meQ.data?.accounts?.[0]?.id ?? null;
+
+  // cuenta principal (si existe)
+  const currentAccount: MeAccount | null =
+    accId && meQ.data?.accounts
+      ? meQ.data.accounts.find((a) => a.id === accId) ?? null
+      : null;
+
+  const accountLabel =
+    currentAccount?.alias ||
+    currentAccount?.bank ||
+    (currentAccount?.accountNumber
+      ? `Cuenta ${currentAccount.accountNumber}`
+      : accId
+      ? `Cuenta ${accId.slice(0, 6)}…`
+      : 'Cuenta principal');
 
   // rango últimos 6 meses
   const now = new Date();
@@ -150,13 +175,15 @@ export default function HomeScreen() {
       const when = new Date(t.bookedAt);
       const cents = Number(t.valueCents) || 0;
 
+      // saldo neto (puede quedar negativo)
       bal += cents;
 
       // línea de gasto por mes (solo débitos)
-      const kMes = new Date(when.getFullYear(), when.getMonth(), 1).toLocaleDateString(
-        'es-CL',
-        { month: 'short', year: '2-digit' },
-      );
+      const kMes = new Date(
+        when.getFullYear(),
+        when.getMonth(),
+        1,
+      ).toLocaleDateString('es-CL', { month: 'short', year: '2-digit' });
 
       if (bucketsMes.has(kMes) && cents < 0) {
         bucketsMes.set(kMes, (bucketsMes.get(kMes) || 0) + Math.abs(cents));
@@ -196,16 +223,13 @@ export default function HomeScreen() {
         : [];
 
     const savings = ingresos30d > 0 ? Math.max(0, ingresos30d - gasto) : 0;
-    const savingsRate =
-      ingresos30d > 0 ? savings / ingresos30d : null;
+    const savingsRate = ingresos30d > 0 ? savings / ingresos30d : null;
 
     const spendThisMonth = serie.length ? serie[serie.length - 1].value : 0;
-    const spendPrevMonth =
-      serie.length > 1 ? serie[serie.length - 2].value : 0;
+    const spendPrevMonth = serie.length > 1 ? serie[serie.length - 2].value : 0;
 
     const trendDelta = spendThisMonth - spendPrevMonth;
-    const trendPct =
-      spendPrevMonth > 0 ? trendDelta / spendPrevMonth : null;
+    const trendPct = spendPrevMonth > 0 ? trendDelta / spendPrevMonth : null;
 
     let trendDirection: 'up' | 'down' | 'flat' = 'flat';
     if (trendPct !== null && Math.abs(trendPct) > 0.02) {
@@ -225,6 +249,9 @@ export default function HomeScreen() {
       trendDirection,
     };
   }, [txQ.data]);
+
+  // saldo real de la cuenta (desde backend) con fallback al neto calculado
+  const accountBalance = currentAccount?.balanceCents ?? balance ?? 0;
 
   // estados globales
   if (!token) {
@@ -274,8 +301,7 @@ export default function HomeScreen() {
     );
   }
 
-  const refreshing =
-    meQ.isRefetching || txQ.isRefetching || anomaliesRefetching;
+  const refreshing = meQ.isRefetching || txQ.isRefetching || anomaliesRefetching;
 
   // textos para la tendencia
   let trendLabel = 'Sin datos suficientes';
@@ -310,7 +336,7 @@ export default function HomeScreen() {
         <View style={s.headerBlock}>
           <Text style={s.hello}>Hola,</Text>
           <Text style={s.user}>{meQ.data?.email ?? 'Usuario'}</Text>
-          <Text style={s.account}>Cuenta: {accId}</Text>
+          <Text style={s.account}>Cuenta principal: {accountLabel}</Text>
         </View>
 
         {/* IA Summary */}
@@ -353,16 +379,16 @@ export default function HomeScreen() {
         {/* KPIs principales */}
         <View style={s.cardsRow}>
           <View style={s.card}>
-            <Text style={s.cardTitle}>Monto actual</Text>
+            <Text style={s.cardTitle}>Saldo cuenta</Text>
             <Text
               style={[
                 s.cardValueBig,
-                (balance ?? 0) < 0 && { color: colors.danger },
+                accountBalance < 0 && { color: colors.danger },
               ]}
             >
-              {fmtCLP(balance ?? 0)}
+              {fmtCLP(accountBalance)}
             </Text>
-            <Text style={s.cardSub}>Saldo acumulado</Text>
+            <Text style={s.cardSub}>Saldo reportado por tu banco.</Text>
           </View>
 
           <View style={s.card}>
@@ -370,7 +396,7 @@ export default function HomeScreen() {
             <Text style={[s.cardValueBig, { color: colors.danger }]}>
               {fmtCLP(gasto30d ?? 0)}
             </Text>
-            <Text style={s.cardSub}>Solo débitos</Text>
+            <Text style={s.cardSub}>Solo débitos de los últimos 30 días.</Text>
           </View>
         </View>
 
@@ -380,7 +406,7 @@ export default function HomeScreen() {
           <Text
             style={[
               s.cardValue,
-              (savingsRate ?? 0) >= 0.2 && { color: colors.success },
+              (savingsRate ?? 0) > 0 && { color: colors.success },
             ]}
           >
             {savingsRate === null
@@ -398,7 +424,8 @@ export default function HomeScreen() {
             <View>
               <Text style={s.sectionTitle}>Tendencia de gasto (6 meses)</Text>
               <Text style={s.chartFoot}>
-                Se muestra el gasto total por mes. Línea verde = mejor, roja = peor.
+                Se muestra el gasto total por mes. Tramo verde = bajaste gasto, rojo =
+                subiste.
               </Text>
             </View>
             <View
@@ -444,9 +471,7 @@ export default function HomeScreen() {
                 <View key={c.label} style={s.shareRow}>
                   <View style={s.shareHeader}>
                     <Text style={s.shareLabel}>{c.label}</Text>
-                    <Text style={s.sharePct}>
-                      {(c.pct * 100).toFixed(1)}%
-                    </Text>
+                    <Text style={s.sharePct}>{(c.pct * 100).toFixed(1)}%</Text>
                   </View>
                   <View style={s.shareBarBg}>
                     <View
@@ -462,7 +487,8 @@ export default function HomeScreen() {
             </View>
           )}
           <Text style={s.chartFoot}>
-            Porcentaje calculado sobre el total gastado (débitos) de los últimos 30 días.
+            Porcentaje calculado sobre el total gastado (débitos) de los últimos 30
+            días.
           </Text>
         </View>
       </ScrollView>
@@ -757,11 +783,6 @@ const s = StyleSheet.create({
   lineChartContainer: {
     marginTop: 8,
     paddingTop: 4,
-  },
-  lineChartEmpty: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 120,
   },
   lineChartLabelsRow: {
     flexDirection: 'row',

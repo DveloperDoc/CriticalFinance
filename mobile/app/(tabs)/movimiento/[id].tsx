@@ -13,7 +13,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import { useAuth } from '@/providers/AuthProvider';
-import { fmtCLP } from '@/utils/format';
+import { fmtCLP, fmtFecha } from '@/utils/format';
 
 // categoría asociada a una tx (puede ser null)
 type Category = { id: string; name: string; color?: string | null } | null;
@@ -104,9 +104,24 @@ export default function MovimientoDetalle() {
       return data as Tx;
     },
     onSuccess: (data) => {
+      // 1) dejar el estado local alineado con la tx devuelta
       setPendingCategoryId(data.categoryId ?? null);
+
+      // 2) actualizar detalle en cache
       qc.setQueryData(['transaction', id], data);
+
+      // 3) refrescar lista general de movimientos
       qc.invalidateQueries({ queryKey: ['transactions'] });
+
+      // 4) refrescar lista de anomalías (si la usas con este queryKey)
+      qc.invalidateQueries({ queryKey: ['transactions', 'anomalies'] });
+
+      // 5) refrescar presupuestos / ahorro
+      qc.invalidateQueries({ queryKey: ['budgets', 'overview'] });
+
+      // 6) refrescar alertas (por si alguna dependía de esta transacción)
+      qc.invalidateQueries({ queryKey: ['alerts'] });
+
       Alert.alert('Listo', 'Categoría actualizada.');
     },
     onError: () => {
@@ -154,15 +169,12 @@ export default function MovimientoDetalle() {
     );
   }
 
+  // Lógica de monto: signo por valueCents, valor absoluto para formatear
   const raw = tx.valueCents ?? 0;
   const isDebit = raw < 0;
   const abs = Math.abs(raw);
-  const fecha = new Date(tx.bookedAt).toLocaleDateString('es-CL', {
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-  });
 
+  const fecha = fmtFecha(tx.bookedAt);
   const title = tx.merchant || tx.description || 'Movimiento';
 
   const tieneSugerenciaIA =

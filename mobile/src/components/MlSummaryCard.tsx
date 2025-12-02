@@ -87,7 +87,7 @@ export function MlSummaryCard() {
 
 const s = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
+    backgroundColor: (colors as any).surface || colors.card,
     borderRadius: 16,
     padding: 16,
     marginHorizontal: 16,

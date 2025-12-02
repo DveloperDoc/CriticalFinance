@@ -26,12 +26,13 @@ enum AlertType {
   budget_over
   anomaly
   recurring_due
+  savings_rule_threshold // alerta por regla de ahorro / saldo mínimo
 }
 
 enum AlertSource {
-  system   // lógica de negocio normal
-  ml       // generado por modelo de machine learning
-  user     // creado o confirmado manualmente
+  system // lógica de negocio normal
+  ml // generado por modelo de machine learning
+  user // creado o confirmado manualmente
 }
 
 enum AccountType {
@@ -48,9 +49,16 @@ enum Currency {
 }
 
 enum MlLabelSource {
-  model    // etiqueta propuesta por el modelo
-  manual   // etiqueta confirmada o cambiada por el usuario
+  model // etiqueta propuesta por el modelo
+  manual // etiqueta confirmada o cambiada por el usuario
   imported // traída desde el banco u otra fuente externa
+}
+
+// Nivel / severidad de la alerta
+enum AlertLevel {
+  INFO
+  WARNING
+  CRITICAL
 }
 
 // --- Modelos -------------------------------------------------
@@ -65,7 +73,7 @@ model User {
   phone        String?  @db.VarChar(24)
 
   // tokens de notificación push (Expo / FCM)
-  pushTokens   PushToken[]
+  pushTokens PushToken[]
 
   accounts     Account[]
   budgets      Budget[]
@@ -85,21 +93,27 @@ model Account {
   holderName    String
   rutTitular    String?     @db.VarChar(16)
 
-  alias         String?
-  active        Boolean @default(true)
-  provider      String?
-  providerRef   String?
+  alias       String?
+  active      Boolean @default(true)
+  provider    String?
+  providerRef String?
 
   // Último saldo conocido (snapshot), útil para features de ML
   currency             Currency @default(CLP)
   balanceCents         Int      @default(0)
-  creditLimitCents     Int?     // para tarjetas de crédito
-  availableCreditCents Int?     // para tarjetas de crédito
+  creditLimitCents     Int? // para tarjetas de crédito
+  availableCreditCents Int? // para tarjetas de crédito
 
-  createdAt    DateTime      @default(now()) @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
 
   transactions Transaction[]
   savingsRules SavingsRule[]
+
+  // alertas vinculadas a esta cuenta (saldo bajo, etc.)
+  alerts Alert[]
+
+  // NUEVO: presupuestos asociados a esta cuenta
+  budgets Budget[]
 
   @@unique([userId, bank, accountType, accountNumber])
   @@index([userId])
@@ -116,7 +130,7 @@ model Category {
   children Category[] @relation("CategoryHierarchy")
   color    String?
 
-  // Categoría confirmada de la transacción (user / lógica de negocio)
+  // Categoría confirmada de la transacción (user / negocio)
   txs          Transaction[] @relation("TxCategory")
   // Categoría predicha por modelo de ML
   predictedTxs Transaction[] @relation("TxPredictedCategory")
@@ -129,9 +143,9 @@ model Category {
 }
 
 model Transaction {
-  id         String    @id @default(uuid())
-  accountId  String
-  account    Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id        String  @id @default(uuid())
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   // Categoría confirmada (user / negocio)
   categoryId String?
@@ -141,23 +155,26 @@ model Transaction {
   mlPredictedCategoryId String?
   mlPredictedCategory   Category? @relation("TxPredictedCategory", fields: [mlPredictedCategoryId], references: [id])
 
-  bookedAt          DateTime        @db.Timestamptz(6)
-  postedAt          DateTime?       @db.Timestamptz(6)
-  valueCents        Int
-  type              TransactionType
-  merchant          String?         @db.VarChar(120)
-  description       String?         @db.VarChar(240)
+  bookedAt    DateTime        @db.Timestamptz(6)
+  postedAt    DateTime?       @db.Timestamptz(6)
+  valueCents  Int
+  type        TransactionType
+  merchant    String?         @db.VarChar(120)
+  description String?         @db.VarChar(240)
 
   // Campos pensados para ML / análisis avanzado
   anomalyScore      Float?
-  isRecurring       Boolean         @default(false)
+  isRecurring       Boolean @default(false)
   balanceAfterCents Int?
   externalId        String?
 
+  // NUEVO: si el usuario ya revisó / descartó la anomalía
+  anomalyResolved Boolean @default(false)
+
   // Metadatos ML
-  mlLabelSource  MlLabelSource?  // de dónde viene la etiqueta actual
-  mlModelVersion String?         // versión de modelo que generó la predicción
-  features       Json?           // features calculadas y cacheadas para entrenamiento/inferencia
+  mlLabelSource  MlLabelSource? // de dónde viene la etiqueta actual
+  mlModelVersion String? // versión de modelo que generó la predicción
+  features       Json? // features calculadas y cacheadas para entrenamiento/inferencia
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   alerts    Alert[]
@@ -169,59 +186,95 @@ model Transaction {
 }
 
 model Budget {
-  id          String       @id @default(uuid())
-  userId      String
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  categoryId  String
-  category    Category     @relation(fields: [categoryId], references: [id])
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
   amountCents Int
   period      BudgetPeriod @default(monthly)
   startMonth  DateTime     @db.Timestamptz(6)
 
-  @@unique([userId, categoryId, period])
+  @@unique([userId, accountId, categoryId, period])
+  @@index([accountId])
 }
 
 model Alert {
-  id            String       @id @default(uuid())
-  userId        String
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relación opcional con una transacción
   transactionId String?
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
-  type          AlertType
-  source        AlertSource  @default(system)
-  payload       Json         // datos adicionales (ej: valores previos/posteriores, explicación del modelo)
-  createdAt     DateTime     @default(now()) @db.Timestamptz(6)
-  readAt        DateTime?
+
+  // alerta asociada a una cuenta específica (ej: saldo bajo)
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id])
+
+  // alerta asociada a una regla de ahorro
+  savingsRuleId String?
+  savingsRule   SavingsRule? @relation(fields: [savingsRuleId], references: [id])
+
+  type   AlertType
+  source AlertSource @default(system)
+
+  // nivel/severidad de la alerta
+  level AlertLevel @default(WARNING)
+
+  // mensaje legible para mostrar en el front
+  message String? @db.VarChar(240)
+
+  // JSON con datos adicionales
+  payload Json
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+  readAt    DateTime?
+
+  // bandera para saber si sigue vigente (para badges, etc.)
+  isActive Boolean @default(true)
 
   @@index([userId, createdAt])
+  @@index([userId, isActive])
+  @@index([accountId])
+  @@index([savingsRuleId])
 }
 
 // Reglas de ahorro / umbrales de saldo por cuenta
 model SavingsRule {
-  id            String   @id @default(uuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  accountId     String
-  account       Account  @relation(fields: [accountId], references: [id])
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id])
 
-  thresholdCents    Int     // umbral duro (ej: 200.000)
-  notifyMarginCents Int?    // margen previo para avisar antes de llegar al umbral
+  thresholdCents    Int // umbral duro (ej: 200.000)
+  notifyMarginCents Int? // margen previo para avisar antes de llegar al umbral
 
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now()) @db.Timestamptz(6)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  // alertas disparadas por esta regla
+  alerts Alert[]
 
   @@index([userId, accountId])
 }
 
 // Tokens de push (Expo / FCM, etc.)
 model PushToken {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  token     String   @db.VarChar(255)
-  platform  String?  @db.VarChar(32)
+  token    String  @db.VarChar(255)
+  platform String? @db.VarChar(32)
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)

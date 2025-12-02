@@ -7,21 +7,34 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { FilterTransactionsDto } from './dto/filter-transactions.dto';
 import { MlService } from '../ml/ml.service';
-import { MlLabelSource, TransactionType } from '@prisma/client';
+import {
+  MlLabelSource,
+  TransactionType,
+  AlertLevel,
+} from '@prisma/client';
+import { SavingsRuleEvaluatorService } from '../savings/savings-rule-evaluator.service';
 import { UpdateTransactionCategoryDto } from './dto/update-transaction-category.dto';
+import { AlertsService } from '../alerts/alerts.service';
 
 @Injectable()
 export class TransactionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mlService: MlService,
+    private readonly savingsRuleEvaluator: SavingsRuleEvaluatorService,
+    private readonly alertsService: AlertsService,
   ) {}
 
   async create(userId: string, dto: CreateTransactionDto) {
-    // 1) validar que la cuenta pertenece al usuario y traer accountType/currency
+    // 1) validar que la cuenta pertenece al usuario y traer datos relevantes
     const account = await this.prisma.account.findFirst({
       where: { id: dto.accountId, userId },
-      select: { id: true, accountType: true, currency: true },
+      select: {
+        id: true,
+        accountType: true,
+        currency: true,
+        balanceCents: true,
+      },
     });
 
     if (!account) {
@@ -31,6 +44,7 @@ export class TransactionsService {
     let mlPredictedCategoryId: string | null = null;
     let mlLabelSource: MlLabelSource | null = null;
     let mlModelVersion: string | null = null;
+    let anomalyScore: number | null = null;
 
     // 2) Si el cliente NO manda categoryId, intentamos predecir con ML
     if (!dto.categoryId) {
@@ -63,7 +77,21 @@ export class TransactionsService {
       }
     }
 
-    // 3) Crear la transacción en BD
+    // 3) Calcular anomalyScore simple (solo para débitos)
+    if (dto.type === TransactionType.debit) {
+      const prevBalance = account.balanceCents ?? 0;
+      const absVal = Math.abs(dto.valueCents);
+
+      if (prevBalance > 0 && absVal > 0) {
+        const ratio = absVal / prevBalance; // 0.5 = 50% del saldo
+        anomalyScore = Math.min(1, ratio);  // clamp 0..1
+      } else if (absVal >= 200_000) {
+        // gasto grande sin saldo previo conocido
+        anomalyScore = 0.9;
+      }
+    }
+
+    // 4) Crear la transacción en BD
     const tx = await this.prisma.transaction.create({
       data: {
         accountId: dto.accountId,
@@ -79,12 +107,76 @@ export class TransactionsService {
         mlPredictedCategoryId,
         mlLabelSource,
         mlModelVersion,
+
+        anomalyScore,
       },
       include: {
         category: true,
         mlPredictedCategory: true,
       },
     });
+
+    // 5) Actualizar saldo de la cuenta según el tipo de transacción
+    const signedDelta =
+      dto.type === TransactionType.credit
+        ? Math.abs(dto.valueCents)
+        : -Math.abs(dto.valueCents);
+
+    try {
+      await this.prisma.account.update({
+        where: { id: account.id },
+        data: {
+          balanceCents: {
+            increment: signedDelta,
+          },
+        },
+      });
+    } catch (e) {
+      // no rompemos la creación de la tx si falla el update de saldo
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[TransactionsService] Error actualizando balance de cuenta',
+        e,
+      );
+    }
+
+    // 6) Re-evaluar reglas de ahorro para el usuario
+    try {
+      await this.savingsRuleEvaluator.evaluateAllForUser(userId);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[TransactionsService] Error evaluando reglas de ahorro',
+        e,
+      );
+    }
+
+    // 7) Crear alerta de anomalía si el score es alto
+    try {
+      if (anomalyScore !== null && anomalyScore >= 0.6) {
+        let level: AlertLevel = AlertLevel.WARNING;
+        if (anomalyScore >= 0.85) {
+          level = AlertLevel.CRITICAL;
+        }
+
+        const msg =
+          level === AlertLevel.CRITICAL
+            ? 'El sistema detectó un gasto inusual y muy alto en tu cuenta.'
+            : 'El sistema detectó un gasto inusual en tu cuenta.';
+
+        await this.alertsService.createAnomalyAlert(userId, {
+          transactionId: tx.id,
+          level,
+          message: msg,
+        });
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[TransactionsService] Error creando alerta de anomalía',
+        e,
+      );
+    }
 
     return tx;
   }
@@ -132,13 +224,12 @@ export class TransactionsService {
     return tx;
   }
 
-  // NUEVO: confirmar/cambiar categoría de una transacción
+  // confirmar/cambiar categoría de una transacción
   async updateCategory(
     userId: string,
     id: string,
     dto: UpdateTransactionCategoryDto,
   ) {
-    // 1) verificar que la transacción pertenece al usuario
     const tx = await this.prisma.transaction.findFirst({
       where: {
         id,
@@ -150,7 +241,6 @@ export class TransactionsService {
       throw new NotFoundException('Transaction not found');
     }
 
-    // 2) verificar que la categoría pertenece al usuario
     const category = await this.prisma.category.findFirst({
       where: {
         id: dto.categoryId,
@@ -162,7 +252,6 @@ export class TransactionsService {
       throw new NotFoundException('Category not found');
     }
 
-    // 3) actualizar: set categoryId y marcar mlLabelSource como manual
     const updated = await this.prisma.transaction.update({
       where: { id },
       data: {
@@ -178,7 +267,7 @@ export class TransactionsService {
     return updated;
   }
 
-  // RESUMEN ML: cuántos movimientos hay, cuántos usan IA, etc.
+  // RESUMEN ML
   async getMlSummary(userId: string) {
     const whereBase = {
       account: { userId },
@@ -228,36 +317,93 @@ export class TransactionsService {
     };
   }
 
-  // NUEVO: detectar movimientos inusuales usando anomalyScore (y fallback z-score simple)
-async getAnomalies(userId: string) {
-  const now = new Date();
-  const since = new Date(now.getTime());
-  since.setDate(since.getDate() - 90); // últimos 90 días
+  // movimientos inusuales / anomalías (solo NO resueltas)
+  async getAnomalies(userId: string) {
+    const now = new Date();
+    const since = new Date(now.getTime());
+    since.setDate(since.getDate() - 90); // últimos 90 días
 
-  const txs = await this.prisma.transaction.findMany({
-    where: {
-      account: { userId },
-      type: TransactionType.debit,
-      bookedAt: { gte: since },
-    },
-    include: {
-      category: true,
-    },
-    orderBy: { bookedAt: 'desc' },
-  });
+    const txs = await this.prisma.transaction.findMany({
+      where: {
+        account: { userId },
+        type: TransactionType.debit,
+        bookedAt: { gte: since },
+        anomalyResolved: false, // solo anomalías pendientes
+      },
+      include: {
+        category: true,
+      },
+      orderBy: { bookedAt: 'desc' },
+    });
 
-  if (!txs.length) return [];
+    if (!txs.length) return [];
 
-  // 1) Caso simple: usar anomalyScore si ya viene relleno
-  const withScore = txs.filter(
-    (tx) => tx.anomalyScore !== null && tx.anomalyScore !== undefined,
-  );
+    // 1) Caso simple: usar anomalyScore si ya viene relleno
+    const withScore = txs.filter(
+      (tx) => tx.anomalyScore !== null && tx.anomalyScore !== undefined,
+    );
 
-  if (withScore.length > 0) {
-    // consideramos anomalía si anomalyScore >= 0.8 (o lo que quieras)
-    const anomalies = withScore.filter((tx) => (tx.anomalyScore as number) >= 0.8);
+    if (withScore.length > 0) {
+      // consideramos anomalía si anomalyScore >= 0.8
+      const anomalies = withScore.filter(
+        (tx) => (tx.anomalyScore as number) >= 0.8,
+      );
 
-    return anomalies.map((tx) => ({
+      return anomalies.map((tx) => ({
+        id: tx.id,
+        merchant: tx.merchant,
+        description: tx.description,
+        valueCents: tx.valueCents,
+        absValueCents: Math.abs(tx.valueCents),
+        bookedAt: tx.bookedAt,
+        category: tx.category
+          ? {
+              id: tx.category.id,
+              name: tx.category.name,
+              color: tx.category.color,
+            }
+          : null,
+        anomalyScore: tx.anomalyScore,
+        anomalyResolved: tx.anomalyResolved,
+      }));
+    }
+
+    // 2) Fallback: z-score simple por categoría
+    const byCat = new Map<string, number[]>();
+    for (const tx of txs) {
+      const key = tx.categoryId ?? 'uncategorized';
+      const absVal = Math.abs(tx.valueCents);
+      if (!byCat.has(key)) byCat.set(key, []);
+      byCat.get(key)!.push(absVal);
+    }
+
+    const stats = new Map<string, { mean: number; std: number }>();
+    for (const [key, vals] of byCat) {
+      const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+      let variance = 0;
+      if (vals.length > 1) {
+        variance =
+          vals.reduce((a, v) => a + Math.pow(v - mean, 2), 0) /
+          (vals.length - 1);
+      }
+      const std = Math.sqrt(variance);
+      stats.set(key, { mean, std });
+    }
+
+    const anomalies = txs
+      .map((tx) => {
+        const key = tx.categoryId ?? 'uncategorized';
+        const { mean, std } = stats.get(key)!;
+        const absVal = Math.abs(tx.valueCents);
+        let z = 0;
+        if (std > 0) z = (absVal - mean) / std;
+        const score = Number(z.toFixed(2));
+
+        return { tx, absVal, score };
+      })
+      .filter((item) => item.score >= 2 && item.absVal > 0);
+
+    return anomalies.map(({ tx, score }) => ({
       id: tx.id,
       merchant: tx.merchant,
       description: tx.description,
@@ -271,60 +417,33 @@ async getAnomalies(userId: string) {
             color: tx.category.color,
           }
         : null,
-      anomalyScore: tx.anomalyScore,
+      anomalyScore: score,
+      anomalyResolved: tx.anomalyResolved,
     }));
   }
 
-  // 2) Fallback: si no hay anomalyScore, hacemos z-score simple por categoría
-  const byCat = new Map<string, number[]>();
-  for (const tx of txs) {
-    const key = tx.categoryId ?? 'uncategorized';
-    const absVal = Math.abs(tx.valueCents);
-    if (!byCat.has(key)) byCat.set(key, []);
-    byCat.get(key)!.push(absVal);
-  }
+  // marcar / desmarcar anomalía como resuelta
+  async setAnomalyResolved(
+    userId: string,
+    id: string,
+    resolved: boolean,
+  ) {
+    const tx = await this.prisma.transaction.findFirst({
+      where: {
+        id,
+        account: { userId },
+      },
+    });
 
-  const stats = new Map<string, { mean: number; std: number }>();
-  for (const [key, vals] of byCat) {
-    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-    let variance = 0;
-    if (vals.length > 1) {
-      variance =
-        vals.reduce((a, v) => a + Math.pow(v - mean, 2), 0) /
-        (vals.length - 1);
+    if (!tx) {
+      throw new NotFoundException('Transaction not found');
     }
-    const std = Math.sqrt(variance);
-    stats.set(key, { mean, std });
+
+    return this.prisma.transaction.update({
+      where: { id },
+      data: {
+        anomalyResolved: resolved,
+      },
+    });
   }
-
-  const anomalies = txs
-    .map((tx) => {
-      const key = tx.categoryId ?? 'uncategorized';
-      const { mean, std } = stats.get(key)!;
-      const absVal = Math.abs(tx.valueCents);
-      let z = 0;
-      if (std > 0) z = (absVal - mean) / std;
-      const score = Number(z.toFixed(2));
-
-      return { tx, absVal, score };
-    })
-    .filter((item) => item.score >= 2 && item.absVal > 0);
-
-  return anomalies.map(({ tx, score }) => ({
-    id: tx.id,
-    merchant: tx.merchant,
-    description: tx.description,
-    valueCents: tx.valueCents,
-    absValueCents: Math.abs(tx.valueCents),
-    bookedAt: tx.bookedAt,
-    category: tx.category
-      ? {
-          id: tx.category.id,
-          name: tx.category.name,
-          color: tx.category.color,
-        }
-      : null,
-    anomalyScore: score,
-  }));
-}
 }

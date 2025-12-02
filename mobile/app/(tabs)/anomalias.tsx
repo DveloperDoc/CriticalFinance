@@ -7,18 +7,22 @@ import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
+  Pressable,
 } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { api } from '@/api/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { colors } from '@/theme';
-import { fmtCLP } from '@/utils/format';
+import { fmtCLP, fmtFecha } from '@/utils/format';
 
-type Category = {
-  id: string;
-  name: string;
-  color?: string | null;
-} | null;
+type Category =
+  | {
+      id: string;
+      name: string;
+      color?: string | null;
+    }
+  | null;
 
 type Anomaly = {
   id: string;
@@ -29,10 +33,13 @@ type Anomaly = {
   bookedAt: string;
   category: Category;
   anomalyScore: number | null;
+  anomalyResolved?: boolean;
 };
 
 export default function AnomaliasScreen() {
   const { token } = useAuth();
+  const router = useRouter();
+  const queryClient = useQueryClient();
 
   const {
     data: anomalies = [],
@@ -42,7 +49,7 @@ export default function AnomaliasScreen() {
     refetch,
     isRefetching,
   } = useQuery<Anomaly[]>({
-    queryKey: ['anomalies'],
+    queryKey: ['transactions', 'anomalies'],
     queryFn: async () => {
       const { data } = await api.get('/transactions/anomalies');
       return data as Anomaly[];
@@ -53,10 +60,51 @@ export default function AnomaliasScreen() {
     retry: 0,
   });
 
+  // Mutación para marcar anomalía como resuelta
+  const resolveMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.patch(`/transactions/${id}/anomaly-resolved`, {
+        resolved: true,
+      });
+    },
+    onMutate: async (id: string) => {
+      await queryClient.cancelQueries({ queryKey: ['transactions', 'anomalies'] });
+      const previous =
+        queryClient.getQueryData<Anomaly[]>(['transactions', 'anomalies']);
+
+      if (previous) {
+        queryClient.setQueryData<Anomaly[]>(
+          ['transactions', 'anomalies'],
+          previous.filter((a) => a.id !== id),
+        );
+      }
+
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          ['transactions', 'anomalies'],
+          context.previous,
+        );
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions', 'anomalies'] });
+    },
+  });
+
+  const handleResolve = (id: string) => {
+    if (resolveMutation.isPending) return;
+    resolveMutation.mutate(id);
+  };
+
   if (!token) {
     return (
       <View style={s.center}>
-        <Text style={s.textMuted}>Inicia sesión para ver movimientos inusuales.</Text>
+        <Text style={s.textMuted}>
+          Inicia sesión para ver movimientos inusuales.
+        </Text>
       </View>
     );
   }
@@ -108,55 +156,92 @@ export default function AnomaliasScreen() {
         ListEmptyComponent={
           <View style={s.emptyBox}>
             <Text style={s.textMuted}>
-              No encontramos movimientos inusuales por ahora. ¡Buen manejo de tus gastos!
+              No encontramos movimientos inusuales por ahora. ¡Buen manejo de tus
+              gastos!
             </Text>
           </View>
         }
         renderItem={({ item }) => {
-          const score = item.anomalyScore ?? 0;
+          const rawScore = item.anomalyScore ?? 0;
 
-          // IMPORTANTE: todos los colores salen del theme
+          // Normalizamos a 0..1 para evitar porcentajes raros cuando viene z-score
+          const normScore = Math.max(
+            0,
+            Math.min(1, rawScore > 1 ? rawScore / 4 : rawScore),
+          );
+
           let severityLabel: string = 'Moderado';
           let severityColor: string = colors.warning;
 
-          if (score >= 0.85) {
+          if (normScore >= 0.85) {
             severityLabel = 'Alto';
             severityColor = colors.danger;
-          } else if (score < 0.6) {
+          } else if (normScore < 0.6) {
             severityLabel = 'Bajo';
             severityColor = colors.success;
           }
 
+          const raw = item.valueCents ?? 0;
+          const isDebit = raw < 0;
+          const abs = Math.abs(raw);
+
           const title = item.merchant || item.description || 'Movimiento inusual';
-          const date = new Date(item.bookedAt).toLocaleString('es-CL');
+          const date = fmtFecha(item.bookedAt);
           const categoryName = item.category?.name ?? 'Sin categoría';
-          const amountFmt = fmtCLP(Math.abs(item.valueCents));
+          const amountFmt = fmtCLP(abs);
 
           return (
             <View style={s.card}>
-              <View style={s.rowHeader}>
-                <Text style={s.cardTitle} numberOfLines={1}>
-                  {title}
-                </Text>
-                <View style={[s.severityChip, { borderColor: severityColor }]}>
-                  <Text style={[s.severityText, { color: severityColor }]}>
-                    {severityLabel}
+              <Pressable onPress={() => router.push(`/movimiento/${item.id}`)}>
+                <View style={s.rowHeader}>
+                  <Text style={s.cardTitle} numberOfLines={1}>
+                    {title}
                   </Text>
+                  <View
+                    style={[s.severityChip, { borderColor: severityColor }]}
+                  >
+                    <Text
+                      style={[s.severityText, { color: severityColor }]}
+                    >
+                      {severityLabel}
+                    </Text>
+                  </View>
                 </View>
-              </View>
 
-              <Text style={s.amount}>{amountFmt}</Text>
-
-              <View style={s.rowMeta}>
-                <Text style={s.metaText}>{date}</Text>
-                <Text style={s.metaText}>{categoryName}</Text>
-              </View>
-
-              {item.anomalyScore !== null && (
-                <Text style={s.scoreText}>
-                  Score de anomalía: {(item.anomalyScore * 100).toFixed(1)}%
+                <Text
+                  style={[
+                    s.amount,
+                    isDebit ? s.amountDebit : s.amountCredit,
+                  ]}
+                >
+                  {isDebit ? '-' : '+'}
+                  {amountFmt}
                 </Text>
-              )}
+
+                <View style={s.rowMeta}>
+                  <Text style={s.metaText}>{date}</Text>
+                  <Text style={s.metaText}>{categoryName}</Text>
+                </View>
+
+                {item.anomalyScore !== null && (
+                  <Text style={s.scoreText}>
+                    Score de anomalía: {(normScore * 100).toFixed(1)}%
+                  </Text>
+                )}
+              </Pressable>
+
+              <View style={s.rowActions}>
+                <Pressable
+                  style={[
+                    s.resolveBtn,
+                    resolveMutation.isPending && s.resolveBtnDisabled,
+                  ]}
+                  onPress={() => handleResolve(item.id)}
+                  disabled={resolveMutation.isPending}
+                >
+                  <Text style={s.resolveBtnText}>Marcar como revisado</Text>
+                </Pressable>
+              </View>
             </View>
           );
         }}
@@ -240,7 +325,12 @@ const s = StyleSheet.create({
     marginTop: 6,
     fontSize: 18,
     fontWeight: '700',
-    color: colors.danger, // SOLO theme, sin '#EF4444'
+  },
+  amountDebit: {
+    color: colors.danger ?? '#ef4444',
+  },
+  amountCredit: {
+    color: colors.success ?? '#22c55e',
   },
   rowMeta: {
     flexDirection: 'row',
@@ -259,5 +349,26 @@ const s = StyleSheet.create({
   err: {
     color: colors.danger,
     textAlign: 'center',
+  },
+  rowActions: {
+    marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  resolveBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: 'transparent',
+  },
+  resolveBtnDisabled: {
+    opacity: 0.6,
+  },
+  resolveBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
   },
 });

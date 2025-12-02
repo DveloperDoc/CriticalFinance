@@ -25,7 +25,7 @@ export default function AppHeader({ title = 'CriticalFinance', showChips = true 
 
   // Cargar alertas para mostrar badge
   const { data: alerts = [] } = useQuery<Alert[]>({
-    queryKey: ['alerts', 'header'],
+    queryKey: ['alerts'], // <-- clave unificada
     queryFn: async () => {
       const { data } = await api.get('/alerts');
       return data as Alert[];
@@ -41,7 +41,6 @@ export default function AppHeader({ title = 'CriticalFinance', showChips = true 
   return (
     <SafeAreaView style={{ backgroundColor: colors.bg }}>
       <View style={[s.wrap, { paddingTop: insets.top + 8 }]}>
-
         {/* FILA SUPERIOR: título + logo + campanita */}
         <View style={s.row}>
           <Text style={s.title}>{title}</Text>

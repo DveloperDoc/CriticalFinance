@@ -9,8 +9,9 @@ export class CreateSavingsRuleDto {
   @Min(0)
   thresholdCents: number;
 
+  // margen opcional → si no viene, el service lo setea a 0
   @IsOptional()
   @IsInt()
   @Min(0)
-  notifyMarginCents?: number;
+  notifyMarginCents?: number = 0;
 }

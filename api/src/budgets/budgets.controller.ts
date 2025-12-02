@@ -9,10 +9,11 @@ import {
   Req,
   UseGuards,
   UnauthorizedException,
+  Query,
 } from '@nestjs/common';
 import { BudgetsService } from './budgets.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
-import { UpsertBudgetDto } from './dto/upsert-budget.dto';
+import { CreateBudgetDto } from './dto/create-budget.dto';
 
 @Controller('budgets')
 @UseGuards(JwtAuthGuard)
@@ -20,8 +21,6 @@ export class BudgetsController {
   constructor(private readonly budgetsService: BudgetsService) {}
 
   private getUserId(req: any): string {
-    // Log de apoyo para ver qué viene realmente
-    // Puedes dejarlo mientras debugueas
     console.log('BudgetsController req.user =', req.user);
 
     const userId =
@@ -30,27 +29,43 @@ export class BudgetsController {
       req.user?.sub;
 
     if (!userId) {
-      throw new UnauthorizedException('No se pudo determinar el usuario desde el token.');
+      throw new UnauthorizedException(
+        'No se pudo determinar el usuario desde el token.',
+      );
     }
 
     return String(userId);
   }
 
+  // POST /budgets → crea/actualiza presupuesto (upsert)
   @Post()
-  upsert(@Req() req: any, @Body() dto: UpsertBudgetDto) {
+  upsert(@Req() req: any, @Body() dto: CreateBudgetDto) {
     const userId = this.getUserId(req);
     return this.budgetsService.upsert(userId, dto);
   }
 
+  // GET /budgets → lista simple de presupuestos (todas las cuentas del usuario)
+  @Get()
+  getAll(@Req() req: any) {
+    const userId = this.getUserId(req);
+    return this.budgetsService.getAll(userId);
+  }
+
+  // GET /budgets/overview → overview + alertas (filtrable por cuenta)
+  // /budgets/overview?accountId=xxxxx
+  @Get('overview')
+  getOverview(
+    @Req() req: any,
+    @Query('accountId') accountId?: string,
+  ) {
+    const userId = this.getUserId(req);
+    return this.budgetsService.getOverview(userId, accountId || undefined);
+  }
+
+  // DELETE /budgets/:id
   @Delete(':id')
   remove(@Req() req: any, @Param('id') id: string) {
     const userId = this.getUserId(req);
     return this.budgetsService.remove(userId, id);
-  }
-
-  @Get('overview')
-  getOverview(@Req() req: any) {
-    const userId = this.getUserId(req);
-    return this.budgetsService.getOverview(userId);
   }
 }

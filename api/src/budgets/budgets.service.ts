@@ -8,7 +8,7 @@ import {
   AlertSource,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { UpsertBudgetDto } from './dto/upsert-budget.dto';
+import { CreateBudgetDto } from './dto/create-budget.dto';
 import { AlertsService } from '../alerts/alerts.service';
 
 @Injectable()
@@ -21,11 +21,32 @@ export class BudgetsService {
   // Primer día del mes actual (UTC)
   private getCurrentMonthStart(): Date {
     const now = new Date();
-    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
+    return new Date(
+      Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0),
+    );
+  }
+
+  // Normaliza startMonth del DTO (ISO) → primer día del mes (UTC).
+  private normalizeStartMonth(startMonth?: string): Date {
+    if (!startMonth) return this.getCurrentMonthStart();
+
+    const d = new Date(startMonth);
+    if (isNaN(d.getTime())) {
+      throw new BadRequestException(
+        'startMonth debe ser una fecha ISO válida',
+      );
+    }
+
+    return new Date(
+      Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1, 0, 0, 0, 0),
+    );
   }
 
   // Rango [from, to) según el tipo de periodo
-  private getPeriodRange(start: Date, period: BudgetPeriod): { from: Date; to: Date } {
+  private getPeriodRange(
+    start: Date,
+    period: BudgetPeriod,
+  ): { from: Date; to: Date } {
     const from = start;
     const to = new Date(start.getTime());
 
@@ -45,45 +66,80 @@ export class BudgetsService {
     return { from, to };
   }
 
-  // POST /budgets  → upsert por (userId, categoryId, period)
-  async upsert(userId: string, dto: UpsertBudgetDto) {
+  /**
+   * POST /budgets  → upsert por (userId, accountId, categoryId, period)
+   * SIN usar unique compuesto en el where (para evitar problemas de tipos),
+   * hacemos:
+   *  - findFirst(...)
+   *  - si existe → update por id
+   *  - si no → create
+   */
+  async upsert(userId: string, dto: CreateBudgetDto) {
     if (!userId) {
-      throw new BadRequestException('userId no definido al guardar presupuesto.');
+      throw new BadRequestException(
+        'userId no definido al guardar presupuesto.',
+      );
     }
 
-    const startMonth = this.getCurrentMonthStart();
+    if (!dto.accountId) {
+      throw new BadRequestException(
+        'accountId es obligatorio para el presupuesto.',
+      );
+    }
+
+    const accountId = dto.accountId;
+    const period = dto.period ?? BudgetPeriod.monthly;
+    const startMonth = this.normalizeStartMonth(dto.startMonth);
 
     try {
-      return await this.prisma.budget.upsert({
+      // 1) Buscar si ya existe presupuesto para (userId, accountId, categoryId, period)
+      const existing = await this.prisma.budget.findFirst({
         where: {
-          userId_categoryId_period: {
-            userId,
-            categoryId: dto.categoryId,
-            period: dto.period,
-          },
-        },
-        create: {
           userId,
+          accountId,
+          categoryId: dto.categoryId,
+          period,
+        },
+        select: { id: true },
+      });
+
+      if (existing) {
+        // 2) Si existe, actualizamos monto y startMonth
+        const budget = await this.prisma.budget.update({
+          where: { id: existing.id },
+          data: {
+            amountCents: dto.amountCents,
+            startMonth,
+          },
+        });
+        return budget;
+      }
+
+      // 3) Si no existe, creamos uno nuevo
+      const budget = await this.prisma.budget.create({
+        data: {
+          userId,
+          accountId,
           categoryId: dto.categoryId,
           amountCents: dto.amountCents,
-          period: dto.period,
-          startMonth,
-        },
-        update: {
-          amountCents: dto.amountCents,
+          period,
           startMonth,
         },
       });
+
+      return budget;
     } catch (e: any) {
       console.error('Error Prisma al upsert budget', e);
 
       if (e instanceof Prisma.PrismaClientKnownRequestError) {
         if (e.code === 'P2003') {
-          throw new BadRequestException('Categoría inválida para este presupuesto.');
+          throw new BadRequestException(
+            'Categoría o cuenta inválida para este presupuesto.',
+          );
         }
         if (e.code === 'P2002') {
           throw new BadRequestException(
-            'Ya existe un presupuesto para esa categoría y período.',
+            'Ya existe un presupuesto para esa categoría, cuenta y período.',
           );
         }
       }
@@ -99,8 +155,33 @@ export class BudgetsService {
     });
   }
 
-  // GET /budgets/overview
-  async getOverview(userId: string) {
+  // GET /budgets → lista simple de presupuestos del usuario (todas las cuentas)
+  async getAll(userId: string) {
+    const budgets = await this.prisma.budget.findMany({
+      where: { userId },
+      include: {
+        category: true,
+        account: true,
+      },
+      orderBy: [
+        { startMonth: 'desc' },
+        { period: 'asc' },
+        { category: { name: 'asc' } },
+      ],
+    });
+
+    // devolver startMonth como "YYYY-MM" para el frontend
+    return budgets.map((b) => ({
+      ...b,
+      startMonth: b.startMonth.toISOString().slice(0, 7),
+    }));
+  }
+
+  /**
+   * GET /budgets/overview → lo que consume ahorro.tsx
+   * Si viene accountId, filtra por esa cuenta (presupuestos y transacciones).
+   */
+  async getOverview(userId: string, accountId?: string) {
     const monthStart = this.getCurrentMonthStart();
 
     // 1) Leer alertas de presupuesto existentes este mes para evitar spam
@@ -115,8 +196,8 @@ export class BudgetsService {
 
     // Set con claves "categoryId:near" o "categoryId:over"
     const existingKeys = new Set<string>();
-    for (const a of existingBudgetAlerts as any[]) {
-      const payload = a.payload ?? {};
+    for (const a of existingBudgetAlerts) {
+      const payload: any = (a as any).payload ?? {};
       const catId = payload.categoryId ?? 'unknown';
       const key = `${catId}:${payload.isOver ? 'over' : 'near'}`;
       existingKeys.add(key);
@@ -124,9 +205,13 @@ export class BudgetsService {
 
     // 2) Calcular overview + crear nuevas alertas solo si no existen
     const budgets = await this.prisma.budget.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(accountId ? { accountId } : {}),
+      },
       include: {
         category: true,
+        account: true,
       },
       orderBy: {
         category: {
@@ -142,7 +227,10 @@ export class BudgetsService {
         const agg = await this.prisma.transaction.aggregate({
           _sum: { valueCents: true },
           where: {
-            account: { userId },
+            account: {
+              userId,
+              ...(accountId ? { id: accountId } : {}),
+            },
             categoryId: b.categoryId,
             type: TransactionType.debit,
             bookedAt: {
@@ -162,7 +250,7 @@ export class BudgetsService {
           amountCents > 0 ? Math.min(1, spentCents / amountCents) : 0;
         const isOver = spentCents >= amountCents;
 
-        // --- NUEVO: generación de alertas con antispam en memoria ---
+        // --- alertas con antispam ---
         try {
           if (isOver) {
             const key = `${b.categoryId}:over`;
@@ -194,7 +282,7 @@ export class BudgetsService {
         } catch (e) {
           console.error('No se pudo crear alerta de presupuesto', e);
         }
-        // ------------------------------------------------------------
+        // ----------------------------
 
         return {
           id: b.id,
@@ -209,6 +297,7 @@ export class BudgetsService {
           progress,
           isOver,
           period: b.period,
+          accountId: b.accountId,
         };
       }),
     );

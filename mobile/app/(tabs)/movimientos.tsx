@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   RefreshControl,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -16,6 +17,13 @@ import { fmtCLP } from '@/utils/format';
 import { colors } from '@/theme';
 
 type Category = { id: string; name: string; color?: string | null } | null;
+
+// Category “real” (no null) para el endpoint /categories
+type CategoryRef = {
+  id: string;
+  name: string;
+  color?: string | null;
+};
 
 type Tx = {
   id: string;
@@ -32,6 +40,9 @@ type Tx = {
   mlLabelSource?: 'model' | 'manual' | 'imported' | null;
 };
 
+type MonthFilterKey = 'all' | 'this-month' | 'last-month' | 'last-3-months';
+type SortKey = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc';
+
 const normalize = (raw: any): Tx[] => {
   if (Array.isArray(raw)) return raw as Tx[];
   if (Array.isArray(raw?.data)) return raw.data as Tx[];
@@ -40,20 +51,58 @@ const normalize = (raw: any): Tx[] => {
   return [];
 };
 
+const toDate = (iso: string) => new Date(iso);
+
+const matchesMonthFilter = (tx: Tx, filter: MonthFilterKey): boolean => {
+  if (filter === 'all') return true;
+
+  const d = toDate(tx.bookedAt);
+  const now = new Date();
+
+  const year = d.getFullYear();
+  const month = d.getMonth();
+
+  const nowYear = now.getFullYear();
+  const nowMonth = now.getMonth();
+
+  if (filter === 'this-month') {
+    return year === nowYear && month === nowMonth;
+  }
+
+  if (filter === 'last-month') {
+    const lastMonthDate = new Date(nowYear, nowMonth - 1, 1);
+    return (
+      year === lastMonthDate.getFullYear() &&
+      month === lastMonthDate.getMonth()
+    );
+  }
+
+  if (filter === 'last-3-months') {
+    const diffMonths = (nowYear - year) * 12 + (nowMonth - month);
+    return diffMonths >= 0 && diffMonths <= 2;
+  }
+
+  return true;
+};
+
 export default function Movimientos() {
   const { token } = useAuth();
   const router = useRouter();
   const enabled = !!token;
 
+  // Filtros
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [monthFilter, setMonthFilter] = useState<MonthFilterKey>('this-month');
+  const [sortBy, setSortBy] = useState<SortKey>('date-desc');
+
   const {
-    data: list = [],
+    data: txs = [],
     isLoading,
     isError,
     error,
     refetch,
     isRefetching,
   } = useQuery<Tx[]>({
-    // clave simple para que invalidateQueries(['transactions']) funcione bien
     queryKey: ['transactions'],
     queryFn: async () => {
       const r = await api.get('/transactions');
@@ -65,47 +114,105 @@ export default function Movimientos() {
     retry: 0,
   });
 
-  const items = useMemo(
-    () =>
-      list.map((tx) => {
-        const raw = tx.valueCents ?? 0;
-        const isDebit = raw < 0;
-        const abs = Math.abs(raw);
+  // categorías para filtro
+  const {
+    data: categories = [],
+    isLoading: categoriesLoading,
+  } = useQuery<CategoryRef[]>({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const { data } = await api.get('/categories');
+      return data as CategoryRef[];
+    },
+    enabled,
+    staleTime: 60_000,
+  });
 
-        const fecha = tx.bookedAt?.slice(0, 10) || '';
-        const title = tx.merchant || tx.description || 'Sin descripción';
+  const items = useMemo(() => {
+    let list = txs.slice();
 
-        const tieneSugerenciaIA =
-          !!tx.mlPredictedCategory &&
-          !!tx.mlPredictedCategoryId &&
-          tx.mlLabelSource === 'model';
+    // filtro por categoría
+    if (selectedCategoryId) {
+      list = list.filter((tx) => tx.category?.id === selectedCategoryId);
+    }
 
-        const estaConfirmada =
-          !!tx.category && tx.mlLabelSource === 'manual';
+    // filtro por periodo
+    list = list.filter((tx) => matchesMonthFilter(tx, monthFilter));
 
-        let categoriaTexto = 'Sin categoría';
-        let iaBadgeVisible = false;
+    // orden
+    list.sort((a, b) => {
+      const dateDiff =
+        toDate(b.bookedAt).getTime() - toDate(a.bookedAt).getTime();
 
-        if (tx.category?.name) {
-          categoriaTexto = tx.category.name;
-        } else if (tieneSugerenciaIA) {
-          categoriaTexto = tx.mlPredictedCategory?.name ?? 'Sugerencia IA';
-          iaBadgeVisible = true;
-        }
+      if (sortBy === 'date-desc') {
+        // Más nuevos primero (usa fecha + hora)
+        return dateDiff;
+      }
 
-        return {
-          id: String(tx.id),
-          title,
-          fecha,
-          categoriaTexto,
-          iaBadgeVisible,
-          estaConfirmada,
-          isDebit,
-          amountFmt: fmtCLP(abs),
-        };
-      }),
-    [list],
-  );
+      if (sortBy === 'date-asc') {
+        // Más antiguos primero
+        return -dateDiff;
+      }
+
+      const absA = Math.abs(a.valueCents ?? 0);
+      const absB = Math.abs(b.valueCents ?? 0);
+
+      if (sortBy === 'amount-desc') {
+        return absB - absA;
+      }
+
+      // amount-asc
+      return absA - absB;
+    });
+
+    // proyección a item de UI
+    return list.map((tx) => {
+      const raw = tx.valueCents ?? 0;
+      const isDebit = raw < 0; // gasto si es negativo
+      const abs = Math.abs(raw);
+
+      // mostramos fecha + hora para que se note bien el orden
+      const fecha = tx.bookedAt
+        ? new Date(tx.bookedAt).toLocaleString('es-CL', {
+            day: '2-digit',
+            month: '2-digit',
+            year: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : '';
+
+      const title = tx.merchant || tx.description || 'Sin descripción';
+
+      const tieneSugerenciaIA =
+        !!tx.mlPredictedCategory &&
+        !!tx.mlPredictedCategoryId &&
+        tx.mlLabelSource === 'model';
+
+      const estaConfirmada = !!tx.category && tx.mlLabelSource === 'manual';
+
+      let categoriaTexto = 'Sin categoría';
+      let iaBadgeVisible = false;
+
+      if (tx.category?.name) {
+        categoriaTexto = tx.category.name;
+      } else if (tieneSugerenciaIA) {
+        categoriaTexto = tx.mlPredictedCategory?.name ?? 'Sugerencia IA';
+        iaBadgeVisible = true;
+      }
+
+      return {
+        id: String(tx.id),
+        title,
+        fecha,
+        categoriaTexto,
+        iaBadgeVisible,
+        estaConfirmada,
+        isDebit,
+        amountFmt: fmtCLP(abs),
+      };
+    });
+  }, [txs, selectedCategoryId, monthFilter, sortBy]);
 
   if (!enabled) {
     return (
@@ -141,6 +248,199 @@ export default function Movimientos() {
 
   return (
     <View style={s.container}>
+      {/* Encabezado simple */}
+      <View style={s.header}>
+        <Text style={s.headerTitle}>Movimientos</Text>
+        <Text style={s.headerSubtitle}>
+          Filtra por periodo, categoría y ordena por fecha o monto.
+        </Text>
+      </View>
+
+      {/* Bloque de filtros */}
+      <View style={s.filtersBlock}>
+        {/* Periodo */}
+        <View style={s.filterGroup}>
+          <Text style={s.filterLabel}>Periodo</Text>
+          <View style={s.chipsRow}>
+            <TouchableOpacity
+              style={[s.chip, monthFilter === 'all' && s.chipSelected]}
+              onPress={() => setMonthFilter('all')}
+            >
+              <Text
+                style={[
+                  s.chipLabel,
+                  monthFilter === 'all' && s.chipLabelSelected,
+                ]}
+              >
+                Todo
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[s.chip, monthFilter === 'this-month' && s.chipSelected]}
+              onPress={() => setMonthFilter('this-month')}
+            >
+              <Text
+                style={[
+                  s.chipLabel,
+                  monthFilter === 'this-month' && s.chipLabelSelected,
+                ]}
+              >
+                Este mes
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[s.chip, monthFilter === 'last-month' && s.chipSelected]}
+              onPress={() => setMonthFilter('last-month')}
+            >
+              <Text
+                style={[
+                  s.chipLabel,
+                  monthFilter === 'last-month' && s.chipLabelSelected,
+                ]}
+              >
+                Mes anterior
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                s.chip,
+                monthFilter === 'last-3-months' && s.chipSelected,
+              ]}
+              onPress={() => setMonthFilter('last-3-months')}
+            >
+              <Text
+                style={[
+                  s.chipLabel,
+                  monthFilter === 'last-3-months' && s.chipLabelSelected,
+                ]}
+              >
+                Últimos 3 meses
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Categoría */}
+        <View style={s.filterGroup}>
+          <Text style={s.filterLabel}>Categoría</Text>
+
+          {categoriesLoading && (
+            <Text style={s.textMuted}>Cargando categorías…</Text>
+          )}
+
+          {!categoriesLoading && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.chipsRowHorizontal}
+            >
+              <TouchableOpacity
+                style={[s.chip, !selectedCategoryId && s.chipSelected]}
+                onPress={() => setSelectedCategoryId(null)}
+              >
+                <Text
+                  style={[
+                    s.chipLabel,
+                    !selectedCategoryId && s.chipLabelSelected,
+                  ]}
+                >
+                  Todas
+                </Text>
+              </TouchableOpacity>
+
+              {categories.map((cat) => {
+                const selected = cat.id === selectedCategoryId;
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={[s.chip, selected && s.chipSelected]}
+                    onPress={() =>
+                      setSelectedCategoryId(selected ? null : cat.id)
+                    }
+                  >
+                    <Text
+                      style={[
+                        s.chipLabel,
+                        selected && s.chipLabelSelected,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {cat.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* Orden */}
+        <View style={s.filterGroup}>
+          <Text style={s.filterLabel}>Ordenar por</Text>
+          <View style={s.chipsRow}>
+            <TouchableOpacity
+              style={[s.chipSmall, sortBy === 'date-desc' && s.chipSelected]}
+              onPress={() => setSortBy('date-desc')}
+            >
+              <Text
+                style={[
+                  s.chipLabel,
+                  sortBy === 'date-desc' && s.chipLabelSelected,
+                ]}
+              >
+                Fecha ↓
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[s.chipSmall, sortBy === 'date-asc' && s.chipSelected]}
+              onPress={() => setSortBy('date-asc')}
+            >
+              <Text
+                style={[
+                  s.chipLabel,
+                  sortBy === 'date-asc' && s.chipLabelSelected,
+                ]}
+              >
+                Fecha ↑
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[s.chipSmall, sortBy === 'amount-desc' && s.chipSelected]}
+              onPress={() => setSortBy('amount-desc')}
+            >
+              <Text
+                style={[
+                  s.chipLabel,
+                  sortBy === 'amount-desc' && s.chipLabelSelected,
+                ]}
+              >
+                Monto ↓
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[s.chipSmall, sortBy === 'amount-asc' && s.chipSelected]}
+              onPress={() => setSortBy('amount-asc')}
+            >
+              <Text
+                style={[
+                  s.chipLabel,
+                  sortBy === 'amount-asc' && s.chipLabelSelected,
+                ]}
+              >
+                Monto ↑
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* Lista de movimientos */}
       <FlatList
         data={items}
         keyExtractor={(it) => it.id}
@@ -206,6 +506,20 @@ const s = StyleSheet.create({
     backgroundColor: colors.background,
   },
 
+  header: {
+    marginBottom: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  headerSubtitle: {
+    fontSize: 11,
+    color: (colors as any).textMuted || '#6b7280',
+    marginTop: 2,
+  },
+
   center: {
     flex: 1,
     alignItems: 'center',
@@ -221,7 +535,7 @@ const s = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 10,
     borderRadius: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: (colors as any).surface || colors.card,
   },
 
   left: {
@@ -259,12 +573,12 @@ const s = StyleSheet.create({
 
   date: {
     fontSize: 11,
-    color: colors.textMuted || '#6b7280',
+    color: (colors as any).textMuted || '#6b7280',
   },
 
   categoryText: {
     fontSize: 11,
-    color: colors.textMuted || '#9ca3af',
+    color: (colors as any).textMuted || '#9ca3af',
   },
 
   iaTag: {
@@ -282,7 +596,7 @@ const s = StyleSheet.create({
 
   confirmedText: {
     fontSize: 10,
-    color: colors.success ?? '#22c55e',
+    color: (colors as any).success ?? '#22c55e',
     fontWeight: '600',
   },
 
@@ -291,12 +605,14 @@ const s = StyleSheet.create({
     fontWeight: '700',
   },
 
+  // Gasto → rojo
   amountDebit: {
-    color: colors.danger ?? '#ef4444',
+    color: (colors as any).danger ?? '#ef4444',
   },
 
+  // Ahorro / ingreso → verde
   amountCredit: {
-    color: colors.success ?? '#22c55e',
+    color: (colors as any).success ?? '#22c55e',
   },
 
   sep: {
@@ -311,9 +627,65 @@ const s = StyleSheet.create({
   },
 
   err: {
-    color: colors.danger ?? '#ef4444',
+    color: (colors as any).danger ?? '#ef4444',
     textAlign: 'center',
   },
 
   flex1: { flex: 1, justifyContent: 'center' },
+
+  // filtros
+  filtersBlock: {
+    marginBottom: 8,
+  },
+  filterGroup: {
+    marginTop: 8,
+  },
+  filterLabel: {
+    fontSize: 11,
+    color: colors.text,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chipsRowHorizontal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingRight: 8,
+  },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  chipSmall: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  chipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipLabel: {
+    color: colors.text,
+    fontSize: 12,
+  },
+  chipLabelSelected: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  textMuted: {
+    color: (colors as any).textMuted || '#9ca3af',
+  },
 });
