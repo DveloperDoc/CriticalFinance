@@ -1,9 +1,14 @@
-# --- Dependencias para ML ---
+# --- ML ---
 pandas==2.2.2
 scikit-learn==1.5.1
 joblib==1.4.2
 
-# --- Dependencias para el microservicio (cuando lo hagamos) ---
+# --- Microservicio ---
 fastapi==0.112.2
 uvicorn==0.30.6
 pydantic==2.8.2
+python-multipart==0.0.9   # opcional, útil si subimos archivos más adelante
+
+# --- Opcionales (solo Linux/Mac) ---
+# uvloop==0.19.0
+# httptools==0.6.1

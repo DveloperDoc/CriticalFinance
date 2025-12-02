@@ -6,6 +6,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsObject,
 } from 'class-validator';
 
 export class CreateTransactionDto {
@@ -19,7 +20,7 @@ export class CreateTransactionDto {
   type: TransactionType;
 
   @IsDateString()
-  bookedAt: string; // ISO
+  bookedAt: string;
 
   @IsOptional()
   @IsDateString()
@@ -40,4 +41,9 @@ export class CreateTransactionDto {
   @IsOptional()
   @IsString()
   externalId?: string;
+
+  // NUEVO (opcional): features internas
+  @IsOptional()
+  @IsObject()
+  features?: any;
 }

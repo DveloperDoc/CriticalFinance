@@ -102,7 +102,7 @@ export class AlertsService {
     });
   }
 
-  // NUEVO: alerta por movimiento inusual (anomalía)
+  // Alerta por movimiento inusual (anomalía general)
   async createAnomalyAlert(
     userId: string,
     params: {
@@ -111,6 +111,11 @@ export class AlertsService {
       level?: AlertLevel;
     },
   ) {
+    const tx = await this.prisma.transaction.findUnique({
+      where: { id: params.transactionId },
+      select: { accountId: true, bookedAt: true },
+    });
+
     return this.prisma.alert.create({
       data: {
         userId,
@@ -118,14 +123,66 @@ export class AlertsService {
         source: AlertSource.ml,
         level: params.level ?? AlertLevel.WARNING,
         transactionId: params.transactionId,
-        accountId: null,
+        accountId: tx?.accountId ?? null,
         savingsRuleId: null,
         message:
           params.message ??
           'Detectamos un movimiento inusual en tu cuenta.',
         payload: {
+          kind: 'anomaly',
           transactionId: params.transactionId,
+          bookedAt: tx?.bookedAt ?? null,
           message: params.message,
+        },
+      },
+    });
+  }
+
+  // Alerta específica para "gasto hormiga"
+  async createGastoHormigaAlert(
+    userId: string,
+    params: {
+      transactionId: string;
+      amountCents: number;
+      description?: string | null;
+      merchant?: string | null; // <-- agregado
+    },
+  ) {
+    const { transactionId, amountCents, description, merchant } = params;
+
+    const tx = await this.prisma.transaction.findUnique({
+      where: { id: transactionId },
+      select: { accountId: true, bookedAt: true },
+    });
+
+    const label =
+      (description && description.trim().length > 0 && description) ||
+      (merchant && merchant.trim().length > 0 && merchant) ||
+      'un movimiento pequeño';
+
+    const prettyAmount = amountCents / 100;
+
+    const message = `Detectamos un posible gasto hormiga: ${label} por $${prettyAmount.toFixed(
+      0,
+    )}.`;
+
+    return this.prisma.alert.create({
+      data: {
+        userId,
+        type: AlertType.anomaly, // seguimos usando "anomaly" y diferenciamos por payload.kind
+        source: AlertSource.ml,
+        level: AlertLevel.WARNING,
+        transactionId,
+        accountId: tx?.accountId ?? null,
+        savingsRuleId: null,
+        message,
+        payload: {
+          kind: 'gasto_hormiga',
+          transactionId,
+          amountCents,
+          bookedAt: tx?.bookedAt ?? null,
+          description: description ?? null,
+          merchant: merchant ?? null,
         },
       },
     });

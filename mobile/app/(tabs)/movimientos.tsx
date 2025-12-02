@@ -38,6 +38,9 @@ type Tx = {
   mlPredictedCategoryId?: string | null;
   mlPredictedCategory?: Category;
   mlLabelSource?: 'model' | 'manual' | 'imported' | null;
+
+  // NUEVO: flag de gasto hormiga
+  isGastoHormiga?: boolean;
 };
 
 type MonthFilterKey = 'all' | 'this-month' | 'last-month' | 'last-3-months';
@@ -210,6 +213,8 @@ export default function Movimientos() {
         estaConfirmada,
         isDebit,
         amountFmt: fmtCLP(abs),
+        // NUEVO: propagamos el flag al item de UI
+        isGastoHormiga: !!tx.isGastoHormiga,
       };
     });
   }, [txs, selectedCategoryId, monthFilter, sortBy]);
@@ -458,6 +463,13 @@ export default function Movimientos() {
                 <View style={s.metaRow}>
                   <Text style={s.date}>{item.fecha}</Text>
                   <Text style={s.categoryText}>{item.categoriaTexto}</Text>
+
+                  {item.isGastoHormiga && (
+                    <View style={s.hormigaChip}>
+                      <Text style={s.hormigaChipText}>Gasto hormiga</Text>
+                    </View>
+                  )}
+
                   {item.iaBadgeVisible && (
                     <View style={s.iaTag}>
                       <Text style={s.iaTagText}>IA</Text>
@@ -598,6 +610,19 @@ const s = StyleSheet.create({
     fontSize: 10,
     color: (colors as any).success ?? '#22c55e',
     fontWeight: '600',
+  },
+
+  // NUEVO: chip de gasto hormiga
+  hormigaChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: (colors as any).danger ?? '#ef4444',
+  },
+  hormigaChipText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#f9fafb',
   },
 
   amount: {

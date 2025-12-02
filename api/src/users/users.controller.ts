@@ -18,7 +18,12 @@ export class UsersController {
 
   @Get('me')
   async me(@Req() req: any) {
-    const userId = req.user.id as string;
+    // Soporta tanto req.user.id como req.user.userId
+    const userId = (req.user?.id ?? req.user?.userId) as string;
+
+    if (!userId) {
+      throw new BadRequestException('Usuario no válido en el token');
+    }
 
     return this.prisma.user.findUnique({
       where: { id: userId },
@@ -26,7 +31,7 @@ export class UsersController {
         id: true,
         name: true,
         email: true,
-        rut: true,
+        // rut: true,  // quítalo si no existe en el modelo User
         phone: true,
         accounts: {
           orderBy: { createdAt: 'asc' },
@@ -47,7 +52,11 @@ export class UsersController {
     @Body('token') token: string,
     @Body('platform') platform?: string,
   ) {
-    const userId = req.user.id as string;
+    const userId = (req.user?.id ?? req.user?.userId) as string;
+
+    if (!userId) {
+      throw new BadRequestException('Usuario no válido en el token');
+    }
 
     // Validación mínima del token
     if (!token || typeof token !== 'string' || token.length < 10) {

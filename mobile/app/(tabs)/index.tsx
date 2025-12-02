@@ -29,6 +29,9 @@ type Tx = {
   valueCents: number;
   category?: Category;
   bookedAt: string; // ISO
+
+  // ML / gasto hormiga
+  isGastoHormiga?: boolean | null;
 };
 
 type MeAccount = {
@@ -147,15 +150,27 @@ export default function HomeScreen() {
     trendDelta,
     trendPct,
     trendDirection,
+    hormigaCount30d,
+    hormigaSum30d,
+    hormigaCountMonth,
+    hormigaSumMonth,
   } = useMemo(() => {
     const list = txQ.data ?? [];
     const ahora = new Date();
     const last30 = new Date(ahora);
     last30.setDate(last30.getDate() - 30);
 
+    const monthStart = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+
     let bal = 0;
     let gasto = 0;
     let ingresos30d = 0;
+
+    // gasto hormiga
+    let hormigaCount30d = 0;
+    let hormigaSum30d = 0;
+    let hormigaCountMonth = 0;
+    let hormigaSumMonth = 0;
 
     // buckets por mes (6 meses)
     const bucketsMes = new Map<string, number>();
@@ -201,6 +216,18 @@ export default function HomeScreen() {
         } else if (cents > 0) {
           ingresos30d += cents;
         }
+
+        // gasto hormiga últimos 30 días (solo débitos)
+        if (cents < 0 && t.isGastoHormiga) {
+          hormigaCount30d += 1;
+          hormigaSum30d += Math.abs(cents);
+        }
+      }
+
+      // gasto hormiga del mes actual (solo débitos)
+      if (when >= monthStart && cents < 0 && t.isGastoHormiga) {
+        hormigaCountMonth += 1;
+        hormigaSumMonth += Math.abs(cents);
       }
     }
 
@@ -247,6 +274,10 @@ export default function HomeScreen() {
       trendDelta,
       trendPct,
       trendDirection,
+      hormigaCount30d,
+      hormigaSum30d,
+      hormigaCountMonth,
+      hormigaSumMonth,
     };
   }, [txQ.data]);
 
@@ -372,6 +403,49 @@ export default function HomeScreen() {
               activeOpacity={0.85}
             >
               <Text style={s.iaButtonText}>Ver inusuales</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Bloque de gastos hormiga */}
+        <View style={[s.card, { marginHorizontal: 16, marginTop: 8 }]}>
+          <View style={s.iaRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.iaLabel}>Gastos hormiga (30 días)</Text>
+              {hormigaCount30d === 0 ? (
+                <Text style={s.iaSubText}>
+                  No se detectaron gastos hormiga en los últimos 30 días.
+                </Text>
+              ) : (
+                <>
+                  <Text style={[s.cardValue, { color: colors.danger }]}>
+                    {fmtCLP(hormigaSum30d)}
+                  </Text>
+                  <Text style={s.cardSub}>
+                    En {hormigaCount30d}{' '}
+                    {hormigaCount30d === 1
+                      ? 'movimiento pequeño detectado por la IA.'
+                      : 'movimientos pequeños detectados por la IA.'}
+                  </Text>
+                  {hormigaCountMonth > 0 && (
+                    <Text style={[s.cardSub, { marginTop: 2 }]}>
+                      Este mes llevas {fmtCLP(hormigaSumMonth)} en gastos hormiga.
+                    </Text>
+                  )}
+                </>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={[
+                s.iaButton,
+                hormigaCount30d === 0 && { opacity: 0.6 },
+              ]}
+              disabled={hormigaCount30d === 0}
+              onPress={() => router.navigate('/(tabs)/movimientos')}
+              activeOpacity={0.85}
+            >
+              <Text style={s.iaButtonText}>Ver movimientos</Text>
             </TouchableOpacity>
           </View>
         </View>

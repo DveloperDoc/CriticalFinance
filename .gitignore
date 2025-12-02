@@ -11,3 +11,32 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
+
+# Node / JS / TS
+node_modules/
+dist/
+build/
+coverage/
+.npm/
+
+# Expo / React Native
+.expo/
+.expo-shared/
+*.bundle
+
+# Python - entornos y caches
+.venv/
+.venv311/
+env/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.python-version
+.pytest_cache/
+.mypy_cache/
+
+# Entorno ML específicos
+ml/.venv/
+ml/.venv311/

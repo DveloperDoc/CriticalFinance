@@ -34,15 +34,35 @@ type Tx = {
   mlPredictedCategoryId?: string | null;
   mlLabelSource?: 'model' | 'manual' | 'imported' | null;
   mlPredictedCategory?: Category;
+
+  // NUEVO: flag de gasto hormiga
+  isGastoHormiga?: boolean;
 };
 
 const normalizeOne = (raw: any): Tx | null => {
   if (!raw) return null;
-  if (Array.isArray(raw)) return (raw[0] ?? null) as Tx | null;
-  if (Array.isArray(raw?.data)) return (raw.data[0] ?? null) as Tx | null;
-  if (raw?.data) return raw.data as Tx;
-  if (raw?.item) return raw.item as Tx;
-  return raw as Tx;
+  let base: Tx;
+  if (Array.isArray(raw)) {
+    const first = raw[0] ?? null;
+    if (!first) return null;
+    base = first as Tx;
+  } else if (Array.isArray(raw?.data)) {
+    const first = raw.data[0] ?? null;
+    if (!first) return null;
+    base = first as Tx;
+  } else if (raw?.data) {
+    base = raw.data as Tx;
+  } else if (raw?.item) {
+    base = raw.item as Tx;
+  } else {
+    base = raw as Tx;
+  }
+
+  // Aseguramos que se preserve isGastoHormiga si viene del backend
+  return {
+    ...base,
+    isGastoHormiga: (base as any).isGastoHormiga ?? (raw as any)?.isGastoHormiga ?? false,
+  };
 };
 
 export default function MovimientoDetalle() {
@@ -225,6 +245,17 @@ export default function MovimientoDetalle() {
             <Text style={s.currencyPillText}>CLP</Text>
           </View>
         </View>
+
+        {/* NUEVO: banner de gasto hormiga */}
+        {tx.isGastoHormiga && (
+          <View style={s.hormigaBanner}>
+            <Text style={s.hormigaBannerTitle}>Gasto hormiga detectado</Text>
+            <Text style={s.hormigaBannerText}>
+              Este movimiento se considera un gasto pequeño y recurrente. Si se
+              repite con frecuencia puede afectar tu capacidad de ahorro.
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Tarjeta de categorías + IA */}
@@ -468,6 +499,26 @@ const s = StyleSheet.create({
     fontSize: 11,
     color: '#bfdbfe',
     fontWeight: '600',
+  },
+
+  // NUEVO: banner gasto hormiga
+  hormigaBanner: {
+    marginTop: 12,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: '#FEF3C7', // amarillo suave
+    borderWidth: 1,
+    borderColor: '#FBBF24',
+  },
+  hormigaBannerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 4,
+  },
+  hormigaBannerText: {
+    fontSize: 12,
+    color: '#92400E',
   },
 
   // Categorías

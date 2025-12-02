@@ -27,12 +27,13 @@ enum AlertType {
   anomaly
   recurring_due
   savings_rule_threshold // alerta por regla de ahorro / saldo mínimo
+  gasto_hormiga          // NUEVO: alerta específica de gasto hormiga
 }
 
 enum AlertSource {
   system // lógica de negocio normal
-  ml // generado por modelo de machine learning
-  user // creado o confirmado manualmente
+  ml     // generado por modelo de machine learning
+  user   // creado o confirmado manualmente
 }
 
 enum AccountType {
@@ -49,8 +50,8 @@ enum Currency {
 }
 
 enum MlLabelSource {
-  model // etiqueta propuesta por el modelo
-  manual // etiqueta confirmada o cambiada por el usuario
+  model    // etiqueta propuesta por el modelo
+  manual   // etiqueta confirmada o cambiada por el usuario
   imported // traída desde el banco u otra fuente externa
 }
 
@@ -112,7 +113,7 @@ model Account {
   // alertas vinculadas a esta cuenta (saldo bajo, etc.)
   alerts Alert[]
 
-  // NUEVO: presupuestos asociados a esta cuenta
+  // presupuestos asociados a esta cuenta
   budgets Budget[]
 
   @@unique([userId, bank, accountType, accountNumber])
@@ -168,13 +169,16 @@ model Transaction {
   balanceAfterCents Int?
   externalId        String?
 
-  // NUEVO: si el usuario ya revisó / descartó la anomalía
+  // si el usuario ya revisó / descartó la anomalía
   anomalyResolved Boolean @default(false)
+
+  // NUEVO: flag de gasto hormiga detectado por el modelo / reglas
+  isGastoHormiga Boolean @default(false)
 
   // Metadatos ML
   mlLabelSource  MlLabelSource? // de dónde viene la etiqueta actual
-  mlModelVersion String? // versión de modelo que generó la predicción
-  features       Json? // features calculadas y cacheadas para entrenamiento/inferencia
+  mlModelVersion String?        // versión de modelo que generó la predicción
+  features       Json?          // features calculadas y cacheadas para entrenamiento/inferencia
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   alerts    Alert[]
@@ -183,6 +187,7 @@ model Transaction {
   @@index([accountId, bookedAt(sort: Desc)])
   @@index([categoryId])
   @@index([mlPredictedCategoryId])
+  @@index([isGastoHormiga])  // NUEVO: para filtrar rápido gastos hormiga
 }
 
 model Budget {

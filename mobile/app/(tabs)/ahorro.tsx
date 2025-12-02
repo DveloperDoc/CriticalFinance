@@ -1,5 +1,5 @@
 // mobile/app/(tabs)/ahorro.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -84,6 +84,14 @@ type Me = {
     currency: string;
     balanceCents: number;
   }[];
+};
+
+// Transacción mínima para gasto hormiga
+type Tx = {
+  id: string;
+  valueCents: number;
+  bookedAt: string;
+  isGastoHormiga?: boolean;
 };
 
 export default function AhorroScreen() {
@@ -176,6 +184,62 @@ export default function AhorroScreen() {
     enabled: enabled && !!currentAccountId,
     staleTime: 60_000,
   });
+
+  // Gasto hormiga del mes actual en la cuenta seleccionada
+  const {
+    data: hormigaTxs = [],
+    isLoading: hormigaLoading,
+  } = useQuery<Tx[]>({
+    queryKey: ['transactions', 'gasto-hormiga', currentAccountId],
+    queryFn: async () => {
+      const now = new Date();
+      const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const to = new Date(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999,
+      ).toISOString();
+
+      const { data } = await api.get('/transactions', {
+        params: {
+          accountId: currentAccountId,
+          from,
+          to,
+        },
+      });
+
+      let list: any[] = [];
+      if (Array.isArray(data)) list = data;
+      else if (Array.isArray(data?.data)) list = data.data;
+      else if (Array.isArray(data?.items)) list = data.items;
+      else if (Array.isArray(data?.transactions)) list = data.transactions;
+
+      return list as Tx[];
+    },
+    enabled: enabled && !!currentAccountId,
+    staleTime: 60_000,
+  });
+
+  const hormigaSummary = useMemo(() => {
+    if (!hormigaTxs || hormigaTxs.length === 0) {
+      return { count: 0, totalCents: 0 };
+    }
+
+    let count = 0;
+    let total = 0;
+
+    for (const tx of hormigaTxs) {
+      if (!tx.isGastoHormiga) continue;
+      count += 1;
+      total += Math.abs(tx.valueCents ?? 0);
+    }
+
+    return { count, totalCents: total };
+  }, [hormigaTxs]);
 
   // Reglas de ahorro (umbral por cuenta) → traemos todas y filtramos por cuenta visible
   const {
@@ -765,6 +829,23 @@ export default function AhorroScreen() {
                   </View>
                 );
               })}
+            </View>
+          )}
+
+          {/* Resumen de gasto hormiga del mes actual */}
+          {!hormigaLoading && hormigaSummary.count > 0 && (
+            <View style={s.hormigaCard}>
+              <Text style={s.hormigaTitle}>Gasto hormiga este mes</Text>
+              <Text style={s.hormigaText}>
+                Has tenido {hormigaSummary.count} movimientos pequeños marcados como
+                “gasto hormiga” en esta cuenta.
+              </Text>
+              <Text style={s.hormigaText}>
+                Total gastado en estos movimientos: {fmtCLP(hormigaSummary.totalCents)}.
+              </Text>
+              <Text style={s.hormigaText}>
+                Reducir un poco estos gastos puede mejorar tu tasa de ahorro mensual.
+              </Text>
             </View>
           )}
         </View>
@@ -1435,6 +1516,27 @@ const s = StyleSheet.create({
     color: colors.text,
     fontSize: 12,
     fontWeight: '600',
+  },
+
+  // Tarjeta gasto hormiga
+  hormigaCard: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#FBBF24',
+  },
+  hormigaTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 4,
+  },
+  hormigaText: {
+    fontSize: 12,
+    color: '#92400E',
+    marginTop: 2,
   },
 
   // Reglas de ahorro

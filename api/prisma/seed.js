@@ -1,238 +1,330 @@
-/* eslint-disable */
-const { PrismaClient, AccountType, Currency } = require('@prisma/client');
-const { faker } = require('@faker-js/faker');
-const { subMonths, eachDayOfInterval } = require('date-fns');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
-
+// prisma/seed.js
+const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-/**
- * Convención:
- * - valueCents guarda PESOS CHILENOS sin decimales (CLP no usa centavos). Ej: $3.500 => 3500.
- * - Débitos (gastos) NEGATIVOS. Créditos (ingresos) POSITIVOS.
- */
-
-const CONFIG = {
-  USERS: 1,
-  ACCOUNTS_PER_USER: 1,
-  MONTHS_BACK: 6,
-  AVG_TX_PER_DAY: 2.2,
-  FIXED_INCOME_CLP: 800000, // sueldo mensual fijo
-};
-
-const CATS = [
-  { name: 'Alimentación', color: '#FF6347', merchants: ['LIDER', 'JUMBO', 'TOTTUS', 'UNIMARC', 'SANTA ISABEL', 'MINIMARKET'] },
-  { name: 'Transporte',  color: '#1E90FF', merchants: ['RED METRO', 'UBER', 'DIDI', 'CABIFY', 'COPEC', 'SHELL', 'PETROBRAS'] },
-  { name: 'Entretenimiento', color: '#9B59B6', merchants: ['NETFLIX', 'SPOTIFY', 'STEAM', 'CINEMARK', 'CINEHOYTS'] },
-  { name: 'Salud', color: '#2ECC71', merchants: ['CRUZ VERDE', 'SALCOBRAND', 'AHUMADA', 'CONSULTA MÉDICA'] },
-  { name: 'Servicios', color: '#F39C12', merchants: ['ENEL', 'AGUAS', 'VTR', 'MOVISTAR', 'WOM', 'ENTEL', 'CLARO'] },
-  { name: 'Restaurantes', color: '#E67E22', merchants: ['MCDONALD\'S', 'KFC', 'DOMINO\'S', 'SUSHI', 'CAFETERÍA'] },
+const CATEGORY_DEFS = [
+  { code: 'SUPERMERCADO_MINIMARKET', name: 'Supermercado / Minimarket' },
+  { code: 'RESTAURANTE_CAFE', name: 'Restaurantes y cafés' },
+  { code: 'SUSCRIPCION_DIGITAL', name: 'Suscripciones digitales' },
+  { code: 'E_COMMERCE', name: 'E-commerce / pagos en línea' },
+  { code: 'SERVICIOS', name: 'Servicios' },
+  { code: 'EFECTIVO', name: 'Retiros en efectivo' },
+  { code: 'TRANSFERENCIA_SALIENTE', name: 'Transferencias enviadas' },
+  { code: 'TRANSFERENCIA_ENTRANTE', name: 'Transferencias recibidas' },
+  { code: 'INTERESES', name: 'Intereses' },
+  { code: 'OTRAS_COMPRAS', name: 'Otras compras' },
 ];
 
-const rnd = (min, max) => faker.number.int({ min, max });
-const pick = arr => arr[Math.floor(Math.random() * arr.length)];
-const extId = (accountId, date, valueCents, desc) =>
-  crypto.createHash('sha1').update(`${accountId}|${date.toISOString()}|${valueCents}|${desc || ''}`).digest('hex');
+const MERCHANTS = {
+  SUPERMERCADO_MINIMARKET: [
+    'STA ISABEL CURACA',
+    'UNIMARC CURACAVI',
+    'SBA CURACAVI O HI',
+    'PANALERA LAFKEN',
+    'HUEVOCENTER',
+  ],
+  RESTAURANTE_CAFE: [
+    'EL POETA 2.0',
+    'LOS LAURELES',
+    'COMERCIAL FELIPE',
+    'UNO SPA.',
+  ],
+  SUSCRIPCION_DIGITAL: [
+    'PRIME VIDEO PRIME',
+    'GOOGLE PLAY YOUTU',
+    'TWITCH',
+    'OPENAI *CHATGPT S',
+    'midasbuy.com',
+  ],
+  E_COMMERCE: [
+    'MERCADOPAGO *PANI',
+    'MERPAGO*PUNTO23',
+    'MERCADOPAGO *MERCADOL',
+    'MERPAGO*VENTA',
+    'PAGO ONLINE KUSHK',
+  ],
+  SERVICIOS: [
+    'LUZ CATALAN',
+    'ENEL',
+    'AGUAS ANDINAS',
+    'VTR',
+    'MOVISTAR',
+  ],
+  EFECTIVO: ['Giro en Cajero Automatico'],
+  TRANSFERENCIA_SALIENTE: [
+    'Transf a Xioma',
+    'Transf a Victo',
+    'Transf a Tio C',
+    'Transf a Diego',
+    'Transf a Franc',
+    'Transf a Fredd',
+    'Transf a Sofia',
+    'Transf a Beni',
+    'Transf a Seba',
+    'Transf a Nicol',
+  ],
+  TRANSFERENCIA_ENTRANTE: ['Transf de JUAN', 'Transf de EMPRESA', 'Transf de Cliente'],
+  INTERESES: ['Intereses Pagados'],
+  OTRAS_COMPRAS: [
+    'RedGloba*MI CUMPL',
+    'RedGloba*TORRES S',
+    'HAULMER*AGRO TURI',
+    'SOCIEDAD SCORPIO',
+  ],
+};
 
-// ---------------- USER ------------------
-
-async function upsertUser(idx) {
-  const email = `demo${idx + 1}@bank.cl`;
-  const passwordHash = await bcrypt.hash('123456', 10);
-  return prisma.user.upsert({
-    where: { email },
-    update: { passwordHash },
-    create: {
-      name: `Usuario Demo ${idx + 1}`,
-      email,
-      passwordHash,
-      rut: '11111111-1',
-      phone: '+56911111111',
+// Solo 3 arquetipos: trabajador formal, estudiante, independiente
+const ARCHETYPES = [
+  {
+    code: 'TRABAJADOR_FORMAL',
+    label: 'Trabajador formal con sueldo',
+    monthlyIncomeRange: [700000, 1500000],
+    avgTxPerDay: 2.5,
+    probsByCategory: {
+      SUPERMERCADO_MINIMARKET: 0.30,
+      RESTAURANTE_CAFE: 0.20,
+      SUSCRIPCION_DIGITAL: 0.10,
+      E_COMMERCE: 0.15,
+      SERVICIOS: 0.05,
+      EFECTIVO: 0.05,
+      TRANSFERENCIA_SALIENTE: 0.10,
+      OTRAS_COMPRAS: 0.05,
     },
-  });
+  },
+  {
+    code: 'ESTUDIANTE',
+    label: 'Estudiante',
+    monthlyIncomeRange: [150000, 350000],
+    avgTxPerDay: 1.2,
+    probsByCategory: {
+      SUPERMERCADO_MINIMARKET: 0.25,
+      RESTAURANTE_CAFE: 0.25,
+      SUSCRIPCION_DIGITAL: 0.15,
+      E_COMMERCE: 0.20,
+      EFECTIVO: 0.10,
+      TRANSFERENCIA_SALIENTE: 0.05,
+    },
+  },
+  {
+    code: 'INDEPENDIENTE',
+    label: 'Independiente (boletas)',
+    monthlyIncomeRange: [800000, 2000000],
+    avgTxPerDay: 2.0,
+    probsByCategory: {
+      SUPERMERCADO_MINIMARKET: 0.25,
+      RESTAURANTE_CAFE: 0.15,
+      E_COMMERCE: 0.15,
+      SERVICIOS: 0.15,
+      TRANSFERENCIA_SALIENTE: 0.15,
+      EFECTIVO: 0.10,
+      SUSCRIPCION_DIGITAL: 0.05,
+    },
+  },
+];
+
+// Helpers
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// ---------------- CATEGORIES --------------
-
-async function ensureUserCategories(userId) {
-  await prisma.category.createMany({
-    data: CATS.map(c => ({ userId, name: c.name, color: c.color })),
-    skipDuplicates: true,
-  });
-  const cats = await prisma.category.findMany({ where: { userId } });
-  return Object.fromEntries(cats.map(c => [c.name, c]));
+function pickOne(arr) {
+  return arr[randInt(0, arr.length - 1)];
 }
 
-// ---------------- ACCOUNTS -----------------
-
-async function createAccountsForUser(userId) {
-  const accounts = [];
-  for (let i = 0; i < CONFIG.ACCOUNTS_PER_USER; i++) {
-    const bank = pick(['BancoEstado', 'Santander', 'BCI', 'Scotiabank', 'Itau']);
-    const accountType = AccountType.CUENTA_VISTA;
-    const accountNumber = faker.string.numeric(8);
-    const holderName = 'Usuario Demo';
-    const rutTitular = '11111111-1';
-
-    const acc = await prisma.account.upsert({
-      where: {
-        // ⚠️ Ajuste: prisma ahora genera este nombre según el @@unique()
-        userId_bank_accountType_accountNumber: {
-          userId,
-          bank,
-          accountType,
-          accountNumber,
-        },
-      },
-      update: {},
-      create: {
-        userId,
-        bank,
-        accountType,
-        accountNumber,
-        holderName,
-        rutTitular,
-        currency: Currency.CLP,
-        alias: 'Cuenta principal',
-        active: true,
-        provider: 'mock',
-        providerRef: null,
-        balanceCents: 0,
-      },
-    });
-
-    accounts.push(acc);
+function pickCategoryByProb(probs) {
+  const entries = Object.entries(probs);
+  const total = entries.reduce((acc, [, p]) => acc + p, 0);
+  const r = Math.random() * total;
+  let acc = 0;
+  for (const [cat, p] of entries) {
+    acc += p;
+    if (r <= acc) return cat;
   }
-  return accounts;
+  return 'SUPERMERCADO_MINIMARKET';
 }
 
-// ------------- TRANSACTIONS GENERATOR -------------
-
-function rangeForCategory(name) {
-  switch (name) {
-    case 'Alimentación': return [3000, 35000];
-    case 'Transporte': return [600, 15000];
-    case 'Servicios': return [5000, 60000];
-    case 'Restaurantes': return [4000, 25000];
-    case 'Entretenimiento': return [3000, 20000];
-    case 'Salud': return [2000, 30000];
-    default: return [1000, 20000];
-  }
+function addDays(base, days) {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  return d;
 }
 
-function generateDailyTxForAccount(accountId, catMap) {
-  const start = subMonths(new Date(), CONFIG.MONTHS_BACK);
-  const days = eachDayOfInterval({ start, end: new Date() });
+function setRandomTime(d) {
+  const h = randInt(8, 22);
+  const m = randInt(0, 59);
+  const res = new Date(d);
+  res.setHours(h, m, 0, 0);
+  return res;
+}
 
-  const txs = [];
+// genera montos con sesgo a “gasto hormiga” en categorías típicas
+function generateAmountCents(category, isHormigaBias = true) {
+  const hormiga = randInt(1000, 5000) * 100;
+  const normal = randInt(6000, 40000) * 100;
 
-  // Ingreso mensual fijo
-  for (let m = 0; m <= CONFIG.MONTHS_BACK; m++) {
-    const dt = subMonths(new Date(), m);
-    const payday = new Date(dt.getFullYear(), dt.getMonth(), 5 + rnd(0, 2), 10, 0, 0);
-    const amount = CONFIG.FIXED_INCOME_CLP;
-    const eid = extId(accountId, payday, amount, 'Sueldo');
+  if (!isHormigaBias) return normal;
 
-    txs.push({
-      id: faker.string.uuid(),
-      accountId,
-      categoryId: null,
-      bookedAt: payday,
-      postedAt: payday,
-      valueCents: amount,
-      type: 'credit',
-      merchant: 'EMPRESA DEMO',
-      description: 'Sueldo',
-      isRecurring: true,
-      anomalyScore: null,
-      balanceAfterCents: null,
-      createdAt: payday,
-      externalId: eid,
-    });
+  if (
+    category === 'RESTAURANTE_CAFE' ||
+    category === 'SUPERMERCADO_MINIMARKET' ||
+    category === 'E_COMMERCE' ||
+    category === 'SUSCRIPCION_DIGITAL'
+  ) {
+    return Math.random() < 0.7 ? hormiga : normal;
   }
 
-  // Gastos diarios
-  for (const d of days) {
-    const howMany = Math.random() < 0.2 ? 0 : Math.round(faker.number.float({ min: 0, max: CONFIG.AVG_TX_PER_DAY + 1 }));
-    for (let i = 0; i < howMany; i++) {
-      const def = pick(CATS);
-      const [minV, maxV] = rangeForCategory(def.name);
-      const value = rnd(minV, maxV);
-      const merchant = pick(def.merchants);
-      const when = new Date(d.getFullYear(), d.getMonth(), d.getDate(), rnd(8, 22), rnd(0, 59));
-      const eid = extId(accountId, when, -value, `${def.name} · ${merchant}`);
-
-      txs.push({
-        id: faker.string.uuid(),
-        accountId,
-        categoryId: catMap[def.name].id,
-        bookedAt: when,
-        postedAt: when,
-        valueCents: -value,
-        type: 'debit',
-        merchant,
-        description: `${def.name} · ${merchant}`,
-        isRecurring: false,
-        anomalyScore: Math.random() < 0.04 ? faker.number.float({ min: 0.7, max: 0.99 }) : null,
-        balanceAfterCents: null,
-        createdAt: when,
-        externalId: eid,
-
-        // ML fields (opcionales)
-        mlPredictedCategoryId: null,
-        mlLabelSource: null,
-        mlModelVersion: null,
-        features: null,
-      });
-    }
+  if (category === 'SERVICIOS') {
+    return randInt(15000, 80000) * 100;
+  }
+  if (category === 'EFECTIVO') {
+    return randInt(10000, 100000) * 100;
+  }
+  if (category === 'TRANSFERENCIA_SALIENTE' || category === 'TRANSFERENCIA_ENTRANTE') {
+    return randInt(5000, 200000) * 100;
+  }
+  if (category === 'INTERESES') {
+    return randInt(100, 1000) * 100;
   }
 
-  return txs;
+  return Math.random() < 0.5 ? hormiga : normal;
 }
 
-async function recalcBalance(accountId) {
-  const sum = await prisma.transaction.aggregate({
-    _sum: { valueCents: true },
-    where: { accountId },
-  });
-
-  await prisma.account.update({
-    where: { id: accountId },
-    data: { balanceCents: sum._sum.valueCents ?? 0 },
-  });
+function buildDescription(category, merchant) {
+  if (category === 'TRANSFERENCIA_SALIENTE') {
+    if (merchant.startsWith('Transf')) return merchant;
+    return `Transf a ${merchant}`;
+  }
+  if (category === 'TRANSFERENCIA_ENTRANTE') {
+    if (merchant.startsWith('Transf')) return merchant;
+    return `Transf de ${merchant}`;
+  }
+  if (category === 'EFECTIVO') {
+    return MERCHANTS.EFECTIVO[0];
+  }
+  if (category === 'INTERESES') {
+    return 'Intereses Pagados';
+  }
+  return `Compra ${merchant}`;
 }
 
 async function main() {
-  console.time('seed');
+  console.log('Reseteando datos (ajusta si no quieres borrar todo)...');
+  await prisma.transaction.deleteMany();
+  await prisma.account.deleteMany();
+  await prisma.category.deleteMany();
+  await prisma.user.deleteMany();
 
-  for (let u = 0; u < CONFIG.USERS; u++) {
-    const user = await upsertUser(u);
-    const catMap = await ensureUserCategories(user.id);
-    const accounts = await createAccountsForUser(user.id);
-
-    for (const acc of accounts) {
-      const txs = generateDailyTxForAccount(acc.id, catMap);
-
-      const chunk = 500;
-      for (let i = 0; i < txs.length; i += chunk) {
-        await prisma.transaction.createMany({
-          data: txs.slice(i, i + chunk),
-          skipDuplicates: true,
-        });
-      }
-
-      await recalcBalance(acc.id);
-    }
+  console.log('Creando categorías...');
+  const categories = [];
+  for (const c of CATEGORY_DEFS) {
+    // OJO: si tu modelo Category NO tiene campo "code",
+    // cambia "code: c.code" por otra cosa o elimínalo.
+    const cat = await prisma.category.create({
+      data: {
+        code: c.code,
+        name: c.name,
+      },
+    });
+    categories.push(cat);
   }
 
-  console.timeEnd('seed');
-  console.log('✅ Seed completo. Usuario: demo1@bank.cl / pass: 123456');
+  const categoryByCode = {};
+  for (const c of categories) {
+    categoryByCode[c.code] = c;
+  }
+
+  const NUM_USERS = 15;
+  const DAYS_BACK = 60;
+  const today = new Date();
+
+  console.log('Creando usuarios, cuentas y transacciones...');
+  for (let i = 0; i < NUM_USERS; i++) {
+    const archetype = pickOne(ARCHETYPES);
+    const [minIncome, maxIncome] = archetype.monthlyIncomeRange;
+    const income = randInt(minIncome, maxIncome);
+
+    const user = await prisma.user.create({
+      data: {
+        email: `user${i + 1}@demo.cl`,
+        name: `${archetype.label} ${i + 1}`,
+      },
+    });
+
+    const account = await prisma.account.create({
+      data: {
+        name: 'Cuenta Más Lucas',
+        number: `0-056-19-${14457 + i}-3`,
+        bank: 'Santander',
+        userId: user.id,
+      },
+    });
+
+    // Sueldo 2 meses hacia atrás
+    for (let m = 0; m < 2; m++) {
+      const sueldoDate = new Date(
+        today.getFullYear(),
+        today.getMonth() - m,
+        randInt(25, 28),
+      );
+      const sueldoAmountCents = income * 100;
+
+      await prisma.transaction.create({
+        data: {
+          accountId: account.id,
+          categoryId: categoryByCode['TRANSFERENCIA_ENTRANTE'].id,
+          valueCents: sueldoAmountCents, // abono
+          merchant: 'EMPRESA',
+          description: 'Transf de EMPRESA',
+          bookedAt: setRandomTime(sueldoDate),
+        },
+      });
+    }
+
+    for (let d = DAYS_BACK; d >= 0; d--) {
+      const date = addDays(today, -d);
+      const isWeekend = [0, 6].includes(date.getDay());
+      const txToday = isWeekend
+        ? Math.max(1, Math.round(archetype.avgTxPerDay * 0.7))
+        : Math.round(archetype.avgTxPerDay);
+
+      for (let t = 0; t < txToday; t++) {
+        const categoryCode = pickCategoryByProb(archetype.probsByCategory);
+        const merchants = MERCHANTS[categoryCode] || MERCHANTS.SUPERMERCADO_MINIMARKET;
+        const merchant = pickOne(merchants);
+        const description = buildDescription(categoryCode, merchant);
+        const amountCents = generateAmountCents(categoryCode, true);
+
+        const isHormiga =
+          ['SUPERMERCADO_MINIMARKET', 'RESTAURANTE_CAFE', 'E_COMMERCE', 'SUSCRIPCION_DIGITAL', 'OTRAS_COMPRAS'].includes(
+            categoryCode,
+          ) && amountCents <= 5000 * 100;
+
+        await prisma.transaction.create({
+          data: {
+            accountId: account.id,
+            categoryId: categoryByCode[categoryCode].id,
+            valueCents: -amountCents, // débito
+            merchant,
+            description,
+            bookedAt: setRandomTime(date),
+            // Si tienes JSON de features podrías guardar el flag hormiga:
+            // features: { isHormigaSeed: isHormiga },
+          },
+        });
+      }
+    }
+
+    console.log(`Usuario ${user.email} (${archetype.code}) listo`);
+  }
+
+  console.log('Seed completado');
 }
 
 main()
-  .then(() => prisma.$disconnect())
   .catch((e) => {
     console.error(e);
-    return prisma.$disconnect().finally(() => process.exit(1));
+    process.exit(1);
+  })
+  .finally(async () => {
+    prisma.$disconnect();
   });

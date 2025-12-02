@@ -15,6 +15,7 @@ import {
 import { SavingsRuleEvaluatorService } from '../savings/savings-rule-evaluator.service';
 import { UpdateTransactionCategoryDto } from './dto/update-transaction-category.dto';
 import { AlertsService } from '../alerts/alerts.service';
+import { GastosHormigaFilterDto } from './dto/gastos-hormiga-filter.dto';
 
 @Injectable()
 export class TransactionsService {
@@ -45,6 +46,7 @@ export class TransactionsService {
     let mlLabelSource: MlLabelSource | null = null;
     let mlModelVersion: string | null = null;
     let anomalyScore: number | null = null;
+    let isGastoHormiga = false;
 
     // 2) Si el cliente NO manda categoryId, intentamos predecir con ML
     if (!dto.categoryId) {
@@ -74,6 +76,9 @@ export class TransactionsService {
           mlLabelSource = MlLabelSource.model;
           mlModelVersion = process.env.ML_MODEL_VERSION ?? 'tx-clf-v1';
         }
+
+        // flag de gasto hormiga desde el modelo (campo extra no tipado)
+        isGastoHormiga = Boolean((mlResult as any).isGastoHormiga);
       }
     }
 
@@ -84,7 +89,7 @@ export class TransactionsService {
 
       if (prevBalance > 0 && absVal > 0) {
         const ratio = absVal / prevBalance; // 0.5 = 50% del saldo
-        anomalyScore = Math.min(1, ratio);  // clamp 0..1
+        anomalyScore = Math.min(1, ratio); // clamp 0..1
       } else if (absVal >= 200_000) {
         // gasto grande sin saldo previo conocido
         anomalyScore = 0.9;
@@ -109,6 +114,12 @@ export class TransactionsService {
         mlModelVersion,
 
         anomalyScore,
+
+        // flag de gasto hormiga
+        isGastoHormiga,
+
+        // opcional: features internas para ML
+        features: dto.features ?? null,
       },
       include: {
         category: true,
@@ -151,7 +162,7 @@ export class TransactionsService {
       );
     }
 
-    // 7) Crear alerta de anomalía si el score es alto
+    // 7) Crear alerta de anomalía si el score es alto (movimiento MUY grande)
     try {
       if (anomalyScore !== null && anomalyScore >= 0.6) {
         let level: AlertLevel = AlertLevel.WARNING;
@@ -174,6 +185,24 @@ export class TransactionsService {
       // eslint-disable-next-line no-console
       console.warn(
         '[TransactionsService] Error creando alerta de anomalía',
+        e,
+      );
+    }
+
+    // 8) Crear alerta de GASTO HORMIGA si corresponde
+    try {
+      if (isGastoHormiga) {
+        await this.alertsService.createGastoHormigaAlert(userId, {
+          transactionId: tx.id,
+          amountCents: Math.abs(dto.valueCents),
+          description: dto.description ?? null,
+          merchant: dto.merchant ?? null,
+        });
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[TransactionsService] Error creando alerta de gasto hormiga',
         e,
       );
     }
@@ -445,5 +474,120 @@ export class TransactionsService {
         anomalyResolved: resolved,
       },
     });
+  }
+
+  // LISTA DE GASTOS HORMIGA
+  async getGastosHormiga(userId: string, filter: GastosHormigaFilterDto) {
+    const { accountId, from, to } = filter;
+
+    const txs = await this.prisma.transaction.findMany({
+      where: {
+        account: { userId },
+        isGastoHormiga: true,
+        accountId: accountId || undefined,
+        bookedAt: {
+          gte: from ? new Date(from) : undefined,
+          lte: to ? new Date(to) : undefined,
+        },
+      },
+      include: {
+        category: true,
+      },
+      orderBy: { bookedAt: 'desc' },
+    });
+
+    return txs.map((tx) => ({
+      id: tx.id,
+      merchant: tx.merchant,
+      description: tx.description,
+      valueCents: tx.valueCents,
+      absValueCents: Math.abs(tx.valueCents),
+      bookedAt: tx.bookedAt,
+      category: tx.category
+        ? {
+            id: tx.category.id,
+            name: tx.category.name,
+            color: tx.category.color,
+          }
+        : null,
+      isGastoHormiga: tx.isGastoHormiga,
+    }));
+  }
+
+  // RESUMEN DE GASTOS HORMIGA (total y por categoría)
+  async getGastosHormigaSummary(
+    userId: string,
+    filter: GastosHormigaFilterDto,
+  ) {
+    const { accountId, from, to } = filter;
+
+    const txs = await this.prisma.transaction.findMany({
+      where: {
+        account: { userId },
+        isGastoHormiga: true,
+        accountId: accountId || undefined,
+        bookedAt: {
+          gte: from ? new Date(from) : undefined,
+          lte: to ? new Date(to) : undefined,
+        },
+      },
+      include: {
+        category: true,
+      },
+    });
+
+    if (!txs.length) {
+      return {
+        totalCount: 0,
+        totalAmountCents: 0,
+        byCategory: [],
+      };
+    }
+
+    const totalCount = txs.length;
+    const totalAmountCents = txs.reduce(
+      (sum, tx) => sum + Math.abs(tx.valueCents),
+      0,
+    );
+
+    type CatAgg = {
+      categoryId: string | null;
+      name: string;
+      color: string | null;
+      count: number;
+      totalAmountCents: number;
+    };
+
+    const byCategoryMap = new Map<string, CatAgg>();
+
+    for (const tx of txs) {
+      const key = tx.categoryId ?? 'uncategorized';
+      const absVal = Math.abs(tx.valueCents);
+
+      let agg = byCategoryMap.get(key);
+      if (!agg) {
+        agg = {
+          categoryId: tx.categoryId ?? null,
+          name: tx.category?.name ?? 'Sin categoría',
+          color: tx.category?.color ?? null,
+          count: 0,
+          totalAmountCents: 0,
+        };
+        byCategoryMap.set(key, agg);
+      }
+
+      agg.count += 1;
+      agg.totalAmountCents += absVal;
+    }
+
+    const byCategory = Array.from(byCategoryMap.values()).sort(
+      (a, b) => b.totalAmountCents - a.totalAmountCents,
+    );
+
+    return {
+      totalCount,
+      totalAmountCents,
+      byCategory,
+    };
   }
 }
