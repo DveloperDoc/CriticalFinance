@@ -19,7 +19,7 @@ type SavingsMonth = {
   incomeCents: number;
   expenseCents: number;
   savingsCents: number; // income - expenses
-  savingsRate: number | null; // savings / income (0..1) o null si income = 0
+  savingsRate: number | null; // savings / income (puede ser <0 si gastas más de lo que ingresas)
 };
 
 export type SavingsOverview = {
@@ -348,18 +348,25 @@ export class SavingsService {
   }
 
   // GET /savings/overview
-  async getOverview(userId: string): Promise<SavingsOverview> {
+  // accountId es opcional: si viene, se filtra por esa cuenta; si no, se agregan todas las cuentas del usuario.
+  async getOverview(
+    userId: string,
+    accountId?: string,
+  ): Promise<SavingsOverview> {
     const monthStarts = this.getLastMonthsRange(6);
     const months: SavingsMonth[] = [];
 
     for (const start of monthStarts) {
       const end = this.getNextMonthStart(start);
 
-      // ingresos (credit)
+      // ingresos (credit, siempre en centavos positivos)
       const creditsAgg = await this.prisma.transaction.aggregate({
         _sum: { valueCents: true },
         where: {
-          account: { userId },
+          account: {
+            userId,
+            ...(accountId ? { id: accountId } : {}),
+          },
           type: TransactionType.credit,
           bookedAt: {
             gte: start,
@@ -368,11 +375,14 @@ export class SavingsService {
         },
       });
 
-      // gastos (debit, en tu modelo vienen negativos)
+      // gastos (debit, en el modelo vienen negativos → tomo valor absoluto)
       const debitsAgg = await this.prisma.transaction.aggregate({
         _sum: { valueCents: true },
         where: {
-          account: { userId },
+          account: {
+            userId,
+            ...(accountId ? { id: accountId } : {}),
+          },
           type: TransactionType.debit,
           bookedAt: {
             gte: start,
@@ -381,8 +391,8 @@ export class SavingsService {
         },
       });
 
-      const incomeRaw = creditsAgg._sum.valueCents ?? 0;
-      const expenseRaw = debitsAgg._sum.valueCents ?? 0;
+      const incomeRaw = creditsAgg._sum.valueCents ?? 0; // normalmente >= 0
+      const expenseRaw = debitsAgg._sum.valueCents ?? 0; // normalmente <= 0
 
       const incomeCents = incomeRaw;
       const expenseCents = expenseRaw < 0 ? -expenseRaw : expenseRaw;

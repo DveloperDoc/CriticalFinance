@@ -1,307 +1,257 @@
 // api/src/budgets/budgets.service.ts
-import { BadRequestException, Injectable } from '@nestjs/common';
 import {
-  Prisma,
-  BudgetPeriod,
-  TransactionType,
-  AlertType,
-  AlertSource,
-} from '@prisma/client';
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { BudgetPeriod, TransactionType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBudgetDto } from './dto/create-budget.dto';
-import { AlertsService } from '../alerts/alerts.service';
+
+type BudgetOverviewItem = {
+  id: string;
+  accountId: string;
+  category: { id: string; name: string; color: string | null };
+  amountCents: number;
+  spentCents: number;
+  remainingCents: number;
+  progress: number; // 0..1
+  isOver: boolean;
+  period: BudgetPeriod;
+};
 
 @Injectable()
 export class BudgetsService {
-  constructor(
-    private prisma: PrismaService,
-    private alertsService: AlertsService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  // Primer día del mes actual (UTC)
-  private getCurrentMonthStart(): Date {
+  /** Inicio de mes (UTC) */
+  private getMonthStart(date = new Date()): Date {
+    return new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 0, 0, 0, 0),
+    );
+  }
+
+  private getCurrentMonthRange() {
     const now = new Date();
-    return new Date(
-      Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0),
+    const start = this.getMonthStart(now);
+    const end = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0, 0),
     );
+    return { start, end };
   }
 
-  // Normaliza startMonth del DTO (ISO) → primer día del mes (UTC).
-  private normalizeStartMonth(startMonth?: string): Date {
-    if (!startMonth) return this.getCurrentMonthStart();
-
-    const d = new Date(startMonth);
-    if (isNaN(d.getTime())) {
-      throw new BadRequestException(
-        'startMonth debe ser una fecha ISO válida',
-      );
-    }
-
-    return new Date(
-      Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1, 0, 0, 0, 0),
-    );
-  }
-
-  // Rango [from, to) según el tipo de periodo
-  private getPeriodRange(
-    start: Date,
-    period: BudgetPeriod,
-  ): { from: Date; to: Date } {
-    const from = start;
-    const to = new Date(start.getTime());
-
-    switch (period) {
-      case BudgetPeriod.weekly:
-        to.setUTCDate(to.getUTCDate() + 7);
-        break;
-      case BudgetPeriod.yearly:
-        to.setUTCFullYear(to.getUTCFullYear() + 1);
-        break;
-      case BudgetPeriod.monthly:
-      default:
-        to.setUTCMonth(to.getUTCMonth() + 1);
-        break;
-    }
-
-    return { from, to };
-  }
+  // ----------------- CRUD BUDGETS -----------------
 
   /**
-   * POST /budgets  → upsert por (userId, accountId, categoryId, period)
-   * SIN usar unique compuesto en el where (para evitar problemas de tipos),
-   * hacemos:
-   *  - findFirst(...)
-   *  - si existe → update por id
-   *  - si no → create
+   * POST /budgets
+   * Crea o actualiza (upsert) un presupuesto por:
+   *   userId + accountId + categoryId + period
    */
   async upsert(userId: string, dto: CreateBudgetDto) {
-    if (!userId) {
+    const { accountId, categoryId, amountCents } = dto;
+    const period: BudgetPeriod = dto.period ?? BudgetPeriod.monthly;
+
+    if (!accountId) {
+      throw new BadRequestException('Debe indicar la cuenta del presupuesto.');
+    }
+    if (!categoryId) {
+      throw new BadRequestException('Debe indicar la categoría del presupuesto.');
+    }
+    if (!amountCents || amountCents <= 0) {
       throw new BadRequestException(
-        'userId no definido al guardar presupuesto.',
+        'El monto del presupuesto debe ser mayor a 0.',
       );
     }
 
-    if (!dto.accountId) {
+    // validar que la cuenta pertenezca al usuario y esté activa
+    const account = await this.prisma.account.findFirst({
+      where: { id: accountId, userId, active: true },
+      select: { id: true },
+    });
+    if (!account) {
       throw new BadRequestException(
-        'accountId es obligatorio para el presupuesto.',
+        'La cuenta no existe o no pertenece al usuario.',
       );
     }
 
-    const accountId = dto.accountId;
-    const period = dto.period ?? BudgetPeriod.monthly;
-    const startMonth = this.normalizeStartMonth(dto.startMonth);
+    // validar que la categoría pertenezca al usuario
+    const category = await this.prisma.category.findFirst({
+      where: { id: categoryId, userId },
+      select: { id: true },
+    });
+    if (!category) {
+      throw new BadRequestException(
+        'La categoría no existe o no pertenece al usuario.',
+      );
+    }
 
-    try {
-      // 1) Buscar si ya existe presupuesto para (userId, accountId, categoryId, period)
-      const existing = await this.prisma.budget.findFirst({
-        where: {
-          userId,
-          accountId,
-          categoryId: dto.categoryId,
-          period,
-        },
-        select: { id: true },
-      });
+    // ¿ya existe un presupuesto para esta combinación?
+    const existing = await this.prisma.budget.findFirst({
+      where: {
+        userId,
+        accountId,
+        categoryId,
+        period,
+      },
+    });
 
-      if (existing) {
-        // 2) Si existe, actualizamos monto y startMonth
-        const budget = await this.prisma.budget.update({
-          where: { id: existing.id },
-          data: {
-            amountCents: dto.amountCents,
-            startMonth,
-          },
-        });
-        return budget;
-      }
-
-      // 3) Si no existe, creamos uno nuevo
-      const budget = await this.prisma.budget.create({
+    if (existing) {
+      // solo actualizamos monto y periodo
+      return this.prisma.budget.update({
+        where: { id: existing.id },
         data: {
-          userId,
-          accountId,
-          categoryId: dto.categoryId,
-          amountCents: dto.amountCents,
+          amountCents,
           period,
-          startMonth,
         },
       });
-
-      return budget;
-    } catch (e: any) {
-      console.error('Error Prisma al upsert budget', e);
-
-      if (e instanceof Prisma.PrismaClientKnownRequestError) {
-        if (e.code === 'P2003') {
-          throw new BadRequestException(
-            'Categoría o cuenta inválida para este presupuesto.',
-          );
-        }
-        if (e.code === 'P2002') {
-          throw new BadRequestException(
-            'Ya existe un presupuesto para esa categoría, cuenta y período.',
-          );
-        }
-      }
-
-      throw new BadRequestException('No se pudo guardar el presupuesto.');
     }
-  }
 
-  // DELETE /budgets/:id
-  async remove(userId: string, id: string) {
-    return this.prisma.budget.deleteMany({
-      where: { id, userId },
+    // si no existe, creamos uno nuevo con startMonth = primer día del mes actual
+    const startMonth = this.getMonthStart(
+      dto.startMonth ? new Date(dto.startMonth) : new Date(),
+    );
+
+    return this.prisma.budget.create({
+      data: {
+        userId,
+        accountId,
+        categoryId,
+        amountCents,
+        period,
+        startMonth,
+      },
     });
   }
 
-  // GET /budgets → lista simple de presupuestos del usuario (todas las cuentas)
+  /**
+   * GET /budgets
+   * Lista "cruda" de presupuestos del usuario (todas las cuentas).
+   */
   async getAll(userId: string) {
     const budgets = await this.prisma.budget.findMany({
       where: { userId },
       include: {
-        category: true,
-        account: true,
+        category: { select: { id: true, name: true, color: true } },
+        account: {
+          select: {
+            id: true,
+            bank: true,
+            alias: true,
+            accountNumber: true,
+            currency: true,
+          },
+        },
       },
-      orderBy: [
-        { startMonth: 'desc' },
-        { period: 'asc' },
-        { category: { name: 'asc' } },
-      ],
+      orderBy: {
+        startMonth: 'asc',
+      },
     });
 
-    // devolver startMonth como "YYYY-MM" para el frontend
-    return budgets.map((b) => ({
-      ...b,
-      startMonth: b.startMonth.toISOString().slice(0, 7),
-    }));
+    return budgets;
   }
 
   /**
-   * GET /budgets/overview → lo que consume ahorro.tsx
-   * Si viene accountId, filtra por esa cuenta (presupuestos y transacciones).
+   * GET /budgets/overview?accountId=...
+   * Summary mensual del mes actual:
+   *   - amountCents (límite)
+   *   - spentCents (gasto este mes)
+   *   - remainingCents
+   *   - progress (0..1)
+   *   - isOver
+   *
+   * Si viene accountId → solo esa cuenta.
+   * Si no viene → todas las cuentas del usuario.
    */
-  async getOverview(userId: string, accountId?: string) {
-    const monthStart = this.getCurrentMonthStart();
+  async getOverview(
+    userId: string,
+    accountId?: string,
+  ): Promise<BudgetOverviewItem[]> {
+    const { start, end } = this.getCurrentMonthRange();
 
-    // 1) Leer alertas de presupuesto existentes este mes para evitar spam
-    const existingBudgetAlerts = await this.prisma.alert.findMany({
-      where: {
-        userId,
-        type: AlertType.budget_over,
-        source: AlertSource.system,
-        createdAt: { gte: monthStart },
-      },
-    });
-
-    // Set con claves "categoryId:near" o "categoryId:over"
-    const existingKeys = new Set<string>();
-    for (const a of existingBudgetAlerts) {
-      const payload: any = (a as any).payload ?? {};
-      const catId = payload.categoryId ?? 'unknown';
-      const key = `${catId}:${payload.isOver ? 'over' : 'near'}`;
-      existingKeys.add(key);
-    }
-
-    // 2) Calcular overview + crear nuevas alertas solo si no existen
+    // 1) Presupuestos relevantes
     const budgets = await this.prisma.budget.findMany({
       where: {
         userId,
         ...(accountId ? { accountId } : {}),
       },
       include: {
-        category: true,
-        account: true,
+        category: { select: { id: true, name: true, color: true } },
       },
       orderBy: {
-        category: {
-          name: 'asc',
-        },
+        startMonth: 'asc',
       },
     });
 
-    const items = await Promise.all(
-      budgets.map(async (b) => {
-        const { from, to } = this.getPeriodRange(b.startMonth, b.period);
+    if (budgets.length === 0) return [];
 
-        const agg = await this.prisma.transaction.aggregate({
-          _sum: { valueCents: true },
-          where: {
-            account: {
-              userId,
-              ...(accountId ? { id: accountId } : {}),
-            },
-            categoryId: b.categoryId,
-            type: TransactionType.debit,
-            bookedAt: {
-              gte: from,
-              lt: to,
-            },
-          },
-        });
+    const accountIds = Array.from(new Set(budgets.map((b) => b.accountId)));
+    const categoryIds = Array.from(new Set(budgets.map((b) => b.categoryId)));
 
-        // Débitos vienen negativos → usamos valor absoluto
-        const raw = agg._sum.valueCents ?? 0;
-        const spentCents = raw < 0 ? -raw : raw;
+    // 2) Transacciones de este mes que afectan a esas cuentas/categorías
+    const txs = await this.prisma.transaction.findMany({
+      where: {
+        accountId: { in: accountIds },
+        categoryId: { in: categoryIds },
+        type: TransactionType.debit, // solo gastos
+        bookedAt: {
+          gte: start,
+          lt: end,
+        },
+        account: { userId },
+      },
+      select: {
+        accountId: true,
+        categoryId: true,
+        valueCents: true, // negativo
+      },
+    });
 
-        const amountCents = b.amountCents;
-        const remainingCents = Math.max(0, amountCents - spentCents);
-        const progress =
-          amountCents > 0 ? Math.min(1, spentCents / amountCents) : 0;
-        const isOver = spentCents >= amountCents;
+    // 3) Agrupar gasto por (accountId, categoryId)
+    const spentMap = new Map<string, number>();
 
-        // --- alertas con antispam ---
-        try {
-          if (isOver) {
-            const key = `${b.categoryId}:over`;
-            if (!existingKeys.has(key)) {
-              await this.alertsService.createBudgetAlert(userId, {
-                categoryId: b.categoryId,
-                categoryName: b.category.name,
-                message: `Te pasaste del presupuesto en ${b.category.name}.`,
-                isOver: true,
-                period: b.period,
-                startMonth: b.startMonth,
-              });
-              existingKeys.add(key);
-            }
-          } else if (progress >= 0.8) {
-            const key = `${b.categoryId}:near`;
-            if (!existingKeys.has(key)) {
-              await this.alertsService.createBudgetAlert(userId, {
-                categoryId: b.categoryId,
-                categoryName: b.category.name,
-                message: `Estás cerca de tu límite en ${b.category.name}.`,
-                isOver: false,
-                period: b.period,
-                startMonth: b.startMonth,
-              });
-              existingKeys.add(key);
-            }
-          }
-        } catch (e) {
-          console.error('No se pudo crear alerta de presupuesto', e);
-        }
-        // ----------------------------
+    for (const tx of txs) {
+      const key = `${tx.accountId}:${tx.categoryId}`;
+      const prev = spentMap.get(key) ?? 0;
+      const abs = Math.abs(tx.valueCents ?? 0);
+      spentMap.set(key, prev + abs);
+    }
 
-        return {
-          id: b.id,
-          category: {
-            id: b.category.id,
-            name: b.category.name,
-            color: b.category.color,
-          },
-          amountCents,
-          spentCents,
-          remainingCents,
-          progress,
-          isOver,
-          period: b.period,
-          accountId: b.accountId,
-        };
-      }),
-    );
+    // 4) Construir overview
+    const overview: BudgetOverviewItem[] = budgets.map((b) => {
+      const key = `${b.accountId}:${b.categoryId}`;
+      const spentCents = spentMap.get(key) ?? 0;
 
-    return items;
+      const remainingCents = Math.max(0, b.amountCents - spentCents);
+      const progress =
+        b.amountCents > 0 ? Math.min(1, spentCents / b.amountCents) : 0;
+      const isOver = spentCents > b.amountCents;
+
+      return {
+        id: b.id,
+        accountId: b.accountId,
+        category: b.category,
+        amountCents: b.amountCents,
+        spentCents,
+        remainingCents,
+        progress,
+        isOver,
+        period: b.period,
+      };
+    });
+
+    return overview;
+  }
+
+  /**
+   * DELETE /budgets/:id
+   */
+  async remove(userId: string, id: string) {
+    const budget = await this.prisma.budget.findUnique({ where: { id } });
+    if (!budget || budget.userId !== userId) {
+      throw new NotFoundException('Presupuesto no encontrado');
+    }
+
+    await this.prisma.budget.delete({ where: { id } });
+    return { ok: true };
   }
 }

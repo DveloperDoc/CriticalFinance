@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -11,6 +12,7 @@ import {
   MlLabelSource,
   TransactionType,
   AlertLevel,
+  Prisma,
 } from '@prisma/client';
 import { SavingsRuleEvaluatorService } from '../savings/savings-rule-evaluator.service';
 import { UpdateTransactionCategoryDto } from './dto/update-transaction-category.dto';
@@ -259,41 +261,61 @@ export class TransactionsService {
     id: string,
     dto: UpdateTransactionCategoryDto,
   ) {
+    // 1) Verificar que la transacción pertenece al usuario
     const tx = await this.prisma.transaction.findFirst({
       where: {
         id,
         account: { userId },
       },
+      select: { id: true },
     });
 
     if (!tx) {
       throw new NotFoundException('Transaction not found');
     }
 
+    // 2) Validar categoría: del usuario y (opcional) macro
     const category = await this.prisma.category.findFirst({
       where: {
         id: dto.categoryId,
         userId,
+        parentId: null, // solo categorías macro
       },
+      select: { id: true, name: true },
     });
 
     if (!category) {
-      throw new NotFoundException('Category not found');
+      throw new BadRequestException(
+        'Categoría inválida. Solo puedes usar categorías principales.',
+      );
     }
 
-    const updated = await this.prisma.transaction.update({
-      where: { id },
-      data: {
-        categoryId: category.id,
-        mlLabelSource: MlLabelSource.manual,
-      },
-      include: {
-        category: true,
-        mlPredictedCategory: true,
-      },
-    });
+    // 3) Actualizar categoría y marcar como manual, con manejo FK
+    try {
+      const updated = await this.prisma.transaction.update({
+        where: { id },
+        data: {
+          categoryId: category.id,
+          mlLabelSource: MlLabelSource.manual,
+        },
+        include: {
+          category: true,
+          mlPredictedCategory: true,
+        },
+      });
 
-    return updated;
+      return updated;
+    } catch (e: any) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2003'
+      ) {
+        throw new BadRequestException(
+          'No se pudo asociar la categoría a esta transacción.',
+        );
+      }
+      throw e;
+    }
   }
 
   // RESUMEN ML

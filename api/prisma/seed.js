@@ -1,6 +1,10 @@
 // prisma/seed.js
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient, AccountType, Currency, TransactionType } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
+
+// contraseña fija de pruebas
+const TEST_PASSWORD = 'test1234';
 
 const CATEGORY_DEFS = [
   { code: 'SUPERMERCADO_MINIMARKET', name: 'Supermercado / Minimarket' },
@@ -63,7 +67,11 @@ const MERCHANTS = {
     'Transf a Seba',
     'Transf a Nicol',
   ],
-  TRANSFERENCIA_ENTRANTE: ['Transf de JUAN', 'Transf de EMPRESA', 'Transf de Cliente'],
+  TRANSFERENCIA_ENTRANTE: [
+    'Transf de JUAN',
+    'Transf de EMPRESA',
+    'Transf de Cliente',
+  ],
   INTERESES: ['Intereses Pagados'],
   OTRAS_COMPRAS: [
     'RedGloba*MI CUMPL',
@@ -73,12 +81,12 @@ const MERCHANTS = {
   ],
 };
 
-// Solo 3 arquetipos: trabajador formal, estudiante, independiente
+// Arquetipos de usuario
 const ARCHETYPES = [
   {
     code: 'TRABAJADOR_FORMAL',
     label: 'Trabajador formal con sueldo',
-    monthlyIncomeRange: [700000, 1500000],
+    monthlyIncomeRange: [700000, 1500000], // en pesos
     avgTxPerDay: 2.5,
     probsByCategory: {
       SUPERMERCADO_MINIMARKET: 0.30,
@@ -159,8 +167,9 @@ function setRandomTime(d) {
 
 // genera montos con sesgo a “gasto hormiga” en categorías típicas
 function generateAmountCents(category, isHormigaBias = true) {
-  const hormiga = randInt(1000, 5000) * 100;
-  const normal = randInt(6000, 40000) * 100;
+  // todos estos valores son en PESOS → se multiplican por 100
+  const hormiga = randInt(1000, 5000) * 100; // 1.000 - 5.000
+  const normal = randInt(6000, 40000) * 100; // 6.000 - 40.000
 
   if (!isHormigaBias) return normal;
 
@@ -179,7 +188,10 @@ function generateAmountCents(category, isHormigaBias = true) {
   if (category === 'EFECTIVO') {
     return randInt(10000, 100000) * 100;
   }
-  if (category === 'TRANSFERENCIA_SALIENTE' || category === 'TRANSFERENCIA_ENTRANTE') {
+  if (
+    category === 'TRANSFERENCIA_SALIENTE' ||
+    category === 'TRANSFERENCIA_ENTRANTE'
+  ) {
     return randInt(5000, 200000) * 100;
   }
   if (category === 'INTERESES') {
@@ -209,77 +221,107 @@ function buildDescription(category, merchant) {
 
 async function main() {
   console.log('Reseteando datos (ajusta si no quieres borrar todo)...');
+
+  // Borrar en orden seguro según dependencias
+  await prisma.alert.deleteMany();
+  await prisma.savingsRule.deleteMany();
+  await prisma.budget.deleteMany();
+  await prisma.pushToken.deleteMany();
   await prisma.transaction.deleteMany();
   await prisma.account.deleteMany();
   await prisma.category.deleteMany();
   await prisma.user.deleteMany();
 
-  console.log('Creando categorías...');
-  const categories = [];
-  for (const c of CATEGORY_DEFS) {
-    // OJO: si tu modelo Category NO tiene campo "code",
-    // cambia "code: c.code" por otra cosa o elimínalo.
-    const cat = await prisma.category.create({
-      data: {
-        code: c.code,
-        name: c.name,
-      },
-    });
-    categories.push(cat);
-  }
-
-  const categoryByCode = {};
-  for (const c of categories) {
-    categoryByCode[c.code] = c;
-  }
-
   const NUM_USERS = 15;
   const DAYS_BACK = 60;
   const today = new Date();
 
-  console.log('Creando usuarios, cuentas y transacciones...');
+  const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+
+  console.log('Creando usuarios, cuentas, categorías y transacciones...');
+
   for (let i = 0; i < NUM_USERS; i++) {
     const archetype = pickOne(ARCHETYPES);
     const [minIncome, maxIncome] = archetype.monthlyIncomeRange;
-    const income = randInt(minIncome, maxIncome);
 
+    // ingreso mensual en pesos y en centavos
+    const incomePesos = randInt(minIncome, maxIncome);
+    const incomeCents = incomePesos * 100;
+
+    // límite de gasto diario ≈ 1.2 × sueldo / 30
+    const maxDailySpendCents = Math.round((incomeCents * 1.2) / 30);
+
+    // 1) Usuario con passwordHash
     const user = await prisma.user.create({
       data: {
         email: `user${i + 1}@demo.cl`,
         name: `${archetype.label} ${i + 1}`,
+        passwordHash,
+        rut: null,
+        phone: null,
       },
     });
 
+    // 2) Categorías para ESTE usuario
+    const categoryByCode = {};
+    for (const c of CATEGORY_DEFS) {
+      const cat = await prisma.category.create({
+        data: {
+          userId: user.id,
+          name: c.name,
+          color: null,
+          parentId: null,
+        },
+      });
+      categoryByCode[c.code] = cat;
+    }
+
+    // 3) Cuenta principal del usuario
     const account = await prisma.account.create({
       data: {
-        name: 'Cuenta Más Lucas',
-        number: `0-056-19-${14457 + i}-3`,
-        bank: 'Santander',
         userId: user.id,
+        bank: 'Santander',
+        accountType: AccountType.CUENTA_CORRIENTE,
+        accountNumber: `0-056-19-${14457 + i}-3`,
+        holderName: user.name,
+        rutTitular: null,
+        alias: 'Cuenta Más Lucas',
+        provider: null,
+        providerRef: null,
+        currency: Currency.CLP,
+        balanceCents: 0,
+        creditLimitCents: null,
+        availableCreditCents: null,
       },
     });
 
-    // Sueldo 2 meses hacia atrás
+    let accountBalanceCents = 0;
+
+    // 4) Sueldo 2 meses hacia atrás (TRANSFERENCIA_ENTRANTE)
     for (let m = 0; m < 2; m++) {
       const sueldoDate = new Date(
         today.getFullYear(),
         today.getMonth() - m,
         randInt(25, 28),
       );
-      const sueldoAmountCents = income * 100;
 
       await prisma.transaction.create({
         data: {
           accountId: account.id,
           categoryId: categoryByCode['TRANSFERENCIA_ENTRANTE'].id,
-          valueCents: sueldoAmountCents, // abono
+          valueCents: incomeCents, // abono
+          type: TransactionType.credit,
           merchant: 'EMPRESA',
           description: 'Transf de EMPRESA',
           bookedAt: setRandomTime(sueldoDate),
+          postedAt: null,
         },
       });
+
+      accountBalanceCents += incomeCents;
     }
 
+    // 5) Movimientos diarios últimos 60 días (acotados por sueldo)
     for (let d = DAYS_BACK; d >= 0; d--) {
       const date = addDays(today, -d);
       const isWeekend = [0, 6].includes(date.getDay());
@@ -287,37 +329,67 @@ async function main() {
         ? Math.max(1, Math.round(archetype.avgTxPerDay * 0.7))
         : Math.round(archetype.avgTxPerDay);
 
+      let spentTodayCents = 0;
+
       for (let t = 0; t < txToday; t++) {
+        const remainingToday = maxDailySpendCents - spentTodayCents;
+        if (remainingToday <= 0) break;
+
         const categoryCode = pickCategoryByProb(archetype.probsByCategory);
-        const merchants = MERCHANTS[categoryCode] || MERCHANTS.SUPERMERCADO_MINIMARKET;
+        const merchants =
+          MERCHANTS[categoryCode] || MERCHANTS.SUPERMERCADO_MINIMARKET;
         const merchant = pickOne(merchants);
         const description = buildDescription(categoryCode, merchant);
-        const amountCents = generateAmountCents(categoryCode, true);
+
+        let amountCents = generateAmountCents(categoryCode, true);
+        if (amountCents > remainingToday) {
+          amountCents = remainingToday;
+        }
+        if (amountCents <= 0) continue;
 
         const isHormiga =
-          ['SUPERMERCADO_MINIMARKET', 'RESTAURANTE_CAFE', 'E_COMMERCE', 'SUSCRIPCION_DIGITAL', 'OTRAS_COMPRAS'].includes(
-            categoryCode,
-          ) && amountCents <= 5000 * 100;
+          [
+            'SUPERMERCADO_MINIMARKET',
+            'RESTAURANTE_CAFE',
+            'E_COMMERCE',
+            'SUSCRIPCION_DIGITAL',
+            'OTRAS_COMPRAS',
+          ].includes(categoryCode) && amountCents <= 5000 * 100;
 
         await prisma.transaction.create({
           data: {
             accountId: account.id,
             categoryId: categoryByCode[categoryCode].id,
             valueCents: -amountCents, // débito
+            type: TransactionType.debit,
             merchant,
             description,
             bookedAt: setRandomTime(date),
-            // Si tienes JSON de features podrías guardar el flag hormiga:
-            // features: { isHormigaSeed: isHormiga },
+            postedAt: null,
+            isGastoHormiga: isHormiga,
           },
         });
+
+        spentTodayCents += amountCents;
+        accountBalanceCents -= amountCents;
       }
     }
+
+    // Actualizar saldo final de la cuenta
+    await prisma.account.update({
+      where: { id: account.id },
+      data: {
+        balanceCents: accountBalanceCents,
+      },
+    });
 
     console.log(`Usuario ${user.email} (${archetype.code}) listo`);
   }
 
   console.log('Seed completado');
+  console.log('Usuario de prueba principal:');
+  console.log(`  Email:    user1@demo.cl`);
+  console.log(`  Password: ${TEST_PASSWORD}`);
 }
 
 main()

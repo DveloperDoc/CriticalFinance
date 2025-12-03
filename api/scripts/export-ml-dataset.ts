@@ -8,6 +8,42 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Exportando dataset de transacciones para ML...');
 
+  // 1) Cargar categorías (id, parentId, name) para poder resolver la macro
+  const categories = await prisma.category.findMany({
+    select: {
+      id: true,
+      parentId: true,
+      name: true,
+    },
+  });
+
+  const catMap = new Map<
+    string,
+    { id: string; parentId: string | null; name: string }
+  >();
+  for (const c of categories) {
+    catMap.set(c.id, {
+      id: c.id,
+      parentId: c.parentId ?? null,
+      name: c.name,
+    });
+  }
+
+  const getRootCategory = (catId: string | null | undefined):
+    | { id: string; name: string }
+    | null => {
+    if (!catId) return null;
+    let current = catMap.get(catId);
+    if (!current) return null;
+
+    while (current.parentId) {
+      const parent = catMap.get(current.parentId);
+      if (!parent) break;
+      current = parent;
+    }
+    return { id: current.id, name: current.name };
+  };
+
   const txs = await prisma.transaction.findMany({
     where: {
       categoryId: { not: null },
@@ -28,7 +64,6 @@ async function main() {
   const outPath = path.join(__dirname, '../../ml/data/transactions_train.csv');
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
 
-  // Cabecera CSV
   const header = [
     'txId',
     'userId',
@@ -42,15 +77,20 @@ async function main() {
     'merchant',
     'description',
     'category',
+    'categoryMacro', // NUEVO
   ];
 
   const lines: string[] = [];
   lines.push(header.join(','));
 
   for (const tx of txs) {
+    const root = getRootCategory(tx.categoryId);
+    const categoryName = tx.category?.name ?? '';
+    const categoryMacroName = root?.name ?? categoryName;
+
     const row = {
       txId: tx.id,
-      userId: tx.account.userId, // viene desde Account -> User
+      userId: tx.account.userId,
       accountType: tx.account.accountType,
       currency: tx.account.currency,
       valueCents: tx.valueCents,
@@ -60,10 +100,10 @@ async function main() {
       bookedAt: tx.bookedAt.toISOString(),
       merchant: tx.merchant ?? '',
       description: tx.description ?? '',
-      category: tx.category?.name ?? '',
+      category: categoryName,
+      categoryMacro: categoryMacroName,
     };
 
-    // Escapar comas y comillas simples en texto
     const serialized = [
       row.txId,
       row.userId,
@@ -77,6 +117,7 @@ async function main() {
       escapeCsv(row.merchant),
       escapeCsv(row.description),
       escapeCsv(row.category),
+      escapeCsv(row.categoryMacro),
     ];
 
     lines.push(serialized.join(','));

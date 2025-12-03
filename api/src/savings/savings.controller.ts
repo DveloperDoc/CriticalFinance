@@ -10,6 +10,7 @@ import {
   Param,
   Patch,
   Delete,
+  Query,
 } from '@nestjs/common';
 import { SavingsService } from './savings.service';
 import { CreateSavingsRuleDto } from './dto/create-savings-rule.dto';
@@ -83,24 +84,28 @@ export class SavingsController {
     return this.savingsService.listAlerts(userId);
   }
 
-  // NUEVO: solo alertas activas (para badge/global)
+  // solo alertas activas (para badge/global)
   @Get('alerts/active')
   async listActiveAlerts(@Req() req: any) {
     const userId = this.getUserId(req);
     return this.savingsService.listActiveAlerts(userId);
   }
 
-  // NUEVO: marcar una alerta como leída/resuelta
+  // marcar una alerta como leída/resuelta
   @Patch('alerts/:id/read')
   async markAlertRead(@Req() req: any, @Param('id') id: string) {
     const userId = this.getUserId(req);
     return this.savingsService.markAlertRead(userId, id);
   }
 
-  // GET /savings/overview → dashboard de ahorro
+  // GET /savings/overview → dashboard de ahorro (opcionalmente filtrado por cuenta)
   @Get('overview')
-  async getOverview(@Req() req: any) {
+  async getOverview(
+    @Req() req: any,
+    @Query('accountId') accountId?: string,
+  ) {
     const userId = this.getUserId(req);
-    return this.savingsService.getOverview(userId);
+    // si no viene accountId, el service hace el overview global por usuario
+    return this.savingsService.getOverview(userId, accountId || undefined);
   }
 }
