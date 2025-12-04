@@ -4,9 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { BudgetPeriod, TransactionType } from '@prisma/client';
+import { BudgetPeriod, TransactionType, AlertType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBudgetDto } from './dto/create-budget.dto';
+import { AlertsService } from '../alerts/alerts.service';
 
 type BudgetOverviewItem = {
   id: string;
@@ -22,7 +23,10 @@ type BudgetOverviewItem = {
 
 @Injectable()
 export class BudgetsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly alertsService: AlertsService,
+  ) {}
 
   /** Inicio de mes (UTC) */
   private getMonthStart(date = new Date()): Date {
@@ -55,7 +59,9 @@ export class BudgetsService {
       throw new BadRequestException('Debe indicar la cuenta del presupuesto.');
     }
     if (!categoryId) {
-      throw new BadRequestException('Debe indicar la categoría del presupuesto.');
+      throw new BadRequestException(
+        'Debe indicar la categoría del presupuesto.',
+      );
     }
     if (!amountCents || amountCents <= 0) {
       throw new BadRequestException(
@@ -74,15 +80,14 @@ export class BudgetsService {
       );
     }
 
-    // validar que la categoría pertenezca al usuario
-    const category = await this.prisma.category.findFirst({
-      where: { id: categoryId, userId },
+    // validar que la categoría exista
+    // (el endpoint /categories ya se encarga de devolver solo categorías del usuario)
+    const category = await this.prisma.category.findUnique({
+      where: { id: categoryId },
       select: { id: true },
     });
     if (!category) {
-      throw new BadRequestException(
-        'La categoría no existe o no pertenece al usuario.',
-      );
+      throw new BadRequestException('La categoría no existe.');
     }
 
     // ¿ya existe un presupuesto para esta combinación?
@@ -216,8 +221,10 @@ export class BudgetsService {
       spentMap.set(key, prev + abs);
     }
 
-    // 4) Construir overview
-    const overview: BudgetOverviewItem[] = budgets.map((b) => {
+    // 4) Construir overview + disparar alertas de presupuesto
+    const overview: BudgetOverviewItem[] = [];
+
+    for (const b of budgets) {
       const key = `${b.accountId}:${b.categoryId}`;
       const spentCents = spentMap.get(key) ?? 0;
 
@@ -226,7 +233,7 @@ export class BudgetsService {
         b.amountCents > 0 ? Math.min(1, spentCents / b.amountCents) : 0;
       const isOver = spentCents > b.amountCents;
 
-      return {
+      const item: BudgetOverviewItem = {
         id: b.id,
         accountId: b.accountId,
         category: b.category,
@@ -237,7 +244,18 @@ export class BudgetsService {
         isOver,
         period: b.period,
       };
-    });
+
+      overview.push(item);
+
+      // Crear / actualizar / resolver alerta de presupuesto
+      await this.alertsService.upsertBudgetAlert(userId, {
+        accountId: b.accountId,
+        categoryId: b.categoryId,
+        categoryName: b.category.name,
+        progress,
+        isOver,
+      });
+    }
 
     return overview;
   }
@@ -250,6 +268,24 @@ export class BudgetsService {
     if (!budget || budget.userId !== userId) {
       throw new NotFoundException('Presupuesto no encontrado');
     }
+
+    // Apagar alertas de presupuesto asociadas a este presupuesto
+    await this.prisma.alert.updateMany({
+      where: {
+        userId,
+        type: AlertType.budget_over,
+        accountId: budget.accountId,
+        payload: {
+          path: ['categoryId'],
+          equals: budget.categoryId,
+        },
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+        readAt: new Date(),
+      },
+    });
 
     await this.prisma.budget.delete({ where: { id } });
     return { ok: true };

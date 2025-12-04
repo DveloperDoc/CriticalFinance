@@ -8,7 +8,6 @@ import {
   Req,
   UseGuards,
   Param,
-  NotFoundException,
   Patch,
   BadRequestException,
 } from '@nestjs/common';
@@ -30,7 +29,9 @@ export class TransactionsController {
       req.user?.sub;
 
     if (!userId) {
-      throw new BadRequestException('No se pudo determinar el usuario desde el token');
+      throw new BadRequestException(
+        'No se pudo determinar el usuario desde el token',
+      );
     }
 
     return String(userId);
@@ -64,15 +65,10 @@ export class TransactionsController {
 
   // GET /transactions/:id
   @Get(':id')
-  async findOne(@Req() req: any, @Param('id') id: string) {
+  findOne(@Req() req: any, @Param('id') id: string) {
     const userId = this.getUserId(req);
-    const tx = await this.transactionsService.findOne(userId, id);
-
-    if (!tx) {
-      throw new NotFoundException('Transaction not found');
-    }
-
-    return tx;
+    // El service ya lanza NotFoundException si no existe
+    return this.transactionsService.findOne(userId, id);
   }
 
   // PATCH /transactions/:id/category
@@ -86,7 +82,7 @@ export class TransactionsController {
     return this.transactionsService.updateCategory(userId, id, dto);
   }
 
-  // NUEVO · PATCH /transactions/:id/anomaly-resolved
+  // PATCH /transactions/:id/anomaly-resolved
   @Patch(':id/anomaly-resolved')
   setAnomalyResolved(
     @Req() req: any,

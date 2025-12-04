@@ -15,8 +15,8 @@ import { BudgetsService } from './budgets.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { CreateBudgetDto } from './dto/create-budget.dto';
 
-@Controller('budgets')
 @UseGuards(JwtAuthGuard)
+@Controller('budgets')
 export class BudgetsController {
   constructor(private readonly budgetsService: BudgetsService) {}
 
@@ -54,10 +54,7 @@ export class BudgetsController {
   // GET /budgets/overview → overview + alertas (filtrable por cuenta)
   // /budgets/overview?accountId=xxxxx
   @Get('overview')
-  getOverview(
-    @Req() req: any,
-    @Query('accountId') accountId?: string,
-  ) {
+  getOverview(@Req() req: any, @Query('accountId') accountId?: string) {
     const userId = this.getUserId(req);
     return this.budgetsService.getOverview(userId, accountId || undefined);
   }

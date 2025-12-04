@@ -50,8 +50,31 @@ export class TransactionsService {
     let anomalyScore: number | null = null;
     let isGastoHormiga = false;
 
-    // 2) Si el cliente NO manda categoryId, intentamos predecir con ML
-    if (!dto.categoryId) {
+    // categoría “final” que quedará como categoryId (si el cliente la mandó y es válida)
+    let finalCategoryId: string | null = null;
+
+    // 2) Si el cliente manda categoryId, la validamos (que sea categoría del usuario, macro)
+    if (dto.categoryId) {
+      const cat = await this.prisma.category.findFirst({
+        where: {
+          id: dto.categoryId,
+          userId,
+          parentId: null, // solo categorías principales
+        },
+        select: { id: true },
+      });
+
+      if (!cat) {
+        throw new BadRequestException(
+          'Categoría inválida para esta transacción.',
+        );
+      }
+
+      finalCategoryId = cat.id;
+    }
+
+    // 3) Si el cliente NO manda categoryId (o no quedó una válida), intentamos predecir con ML
+    if (!finalCategoryId) {
       const mlResult = await this.mlService.predictCategory({
         description: dto.description,
         merchant: dto.merchant,
@@ -64,17 +87,29 @@ export class TransactionsService {
         balanceAfterCents: null,
       });
 
-      if (mlResult) {
-        // Buscar Category por NOMBRE para ese usuario
-        const matchedCategory = await this.prisma.category.findFirst({
-          where: {
-            userId,
-            name: mlResult.category,
-          },
-        });
+      if (mlResult && mlResult.category) {
+        const label = mlResult.category.trim();
 
-        if (matchedCategory) {
-          mlPredictedCategoryId = matchedCategory.id;
+        if (label) {
+          // Asegurar Category por (userId, name): se crea si no existe
+          // Requiere @@unique([userId, name], name: "userId_name") en Category
+          const category = await this.prisma.category.upsert({
+            where: {
+              userId_name: {
+                userId,
+                name: label,
+              },
+            },
+            update: {},
+            create: {
+              userId,
+              name: label,
+              color: null,
+              parentId: null, // la dejamos como categoría macro
+            },
+          });
+
+          mlPredictedCategoryId = category.id;
           mlLabelSource = MlLabelSource.model;
           mlModelVersion = process.env.ML_MODEL_VERSION ?? 'tx-clf-v1';
         }
@@ -84,7 +119,7 @@ export class TransactionsService {
       }
     }
 
-    // 3) Calcular anomalyScore simple (solo para débitos)
+    // 4) Calcular anomalyScore simple (solo para débitos)
     if (dto.type === TransactionType.debit) {
       const prevBalance = account.balanceCents ?? 0;
       const absVal = Math.abs(dto.valueCents);
@@ -98,7 +133,7 @@ export class TransactionsService {
       }
     }
 
-    // 4) Crear la transacción en BD
+    // 5) Crear la transacción en BD
     const tx = await this.prisma.transaction.create({
       data: {
         accountId: dto.accountId,
@@ -108,9 +143,13 @@ export class TransactionsService {
         postedAt: dto.postedAt ? new Date(dto.postedAt) : null,
         merchant: dto.merchant ?? null,
         description: dto.description ?? null,
-        categoryId: dto.categoryId ?? null,
+
+        // categoría confirmada (si el cliente mandó una válida)
+        categoryId: finalCategoryId,
+
         externalId: dto.externalId ?? null,
 
+        // predicción ML (puede diferir de categoryId hasta que el usuario confirme)
         mlPredictedCategoryId,
         mlLabelSource,
         mlModelVersion,
@@ -129,7 +168,7 @@ export class TransactionsService {
       },
     });
 
-    // 5) Actualizar saldo de la cuenta según el tipo de transacción
+    // 6) Actualizar saldo de la cuenta según el tipo de transacción
     const signedDelta =
       dto.type === TransactionType.credit
         ? Math.abs(dto.valueCents)
@@ -153,7 +192,7 @@ export class TransactionsService {
       );
     }
 
-    // 6) Re-evaluar reglas de ahorro para el usuario
+    // 7) Re-evaluar reglas de ahorro para el usuario
     try {
       await this.savingsRuleEvaluator.evaluateAllForUser(userId);
     } catch (e) {
@@ -164,7 +203,7 @@ export class TransactionsService {
       );
     }
 
-    // 7) Crear alerta de anomalía si el score es alto (movimiento MUY grande)
+    // 8) Crear alerta de anomalía si el score es alto (movimiento MUY grande)
     try {
       if (anomalyScore !== null && anomalyScore >= 0.6) {
         let level: AlertLevel = AlertLevel.WARNING;
@@ -191,7 +230,7 @@ export class TransactionsService {
       );
     }
 
-    // 8) Crear alerta de GASTO HORMIGA si corresponde
+    // 9) Crear alerta de GASTO HORMIGA si corresponde
     try {
       if (isGastoHormiga) {
         await this.alertsService.createGastoHormigaAlert(userId, {
@@ -490,12 +529,27 @@ export class TransactionsService {
       throw new NotFoundException('Transaction not found');
     }
 
-    return this.prisma.transaction.update({
+    const updated = await this.prisma.transaction.update({
       where: { id },
       data: {
         anomalyResolved: resolved,
       },
     });
+
+    // Si se marca como resuelta, apagar alertas de anomalía asociadas a esta transacción
+    if (resolved) {
+      try {
+        await this.alertsService.resolveAnomalyAlerts(userId, id);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[TransactionsService] Error resolviendo alertas de anomalía',
+          e,
+        );
+      }
+    }
+
+    return updated;
   }
 
   // LISTA DE GASTOS HORMIGA

@@ -236,8 +236,8 @@ model Alert {
   // mensaje legible para mostrar en el front
   message String? @db.VarChar(240)
 
-  // JSON con datos adicionales
-  payload Json
+  // JSON con datos adicionales (puede ser null si no necesitas payload)
+  payload Json?
 
   createdAt DateTime  @default(now()) @db.Timestamptz(6)
   readAt    DateTime?
@@ -249,7 +249,9 @@ model Alert {
   @@index([userId, isActive])
   @@index([accountId])
   @@index([savingsRuleId])
+  @@index([type])
 }
+
 
 // Reglas de ahorro / umbrales de saldo por cuenta
 model SavingsRule {

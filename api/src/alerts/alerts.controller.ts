@@ -3,18 +3,17 @@ import {
   Controller,
   Get,
   Patch,
+  Delete,
   Param,
   Req,
   UseGuards,
-  Body,
-  Delete,
-  BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { AlertsService } from './alerts.service';
 
 @UseGuards(JwtAuthGuard)
-@Controller('alerts')
+@Controller()
 export class AlertsController {
   constructor(private readonly alertsService: AlertsService) {}
 
@@ -25,48 +24,46 @@ export class AlertsController {
       req.user?.sub;
 
     if (!userId) {
-      throw new BadRequestException(
-        'No se pudo determinar el usuario desde el token',
+      throw new UnauthorizedException(
+        'No se pudo determinar el usuario desde el token.',
       );
     }
 
     return String(userId);
   }
 
-  // GET /alerts → todas las alertas del usuario (activas e inactivas)
-  @Get()
-  async listMyAlerts(@Req() req: any) {
+  @Get('alerts')
+  listAll(@Req() req: any) {
     const userId = this.getUserId(req);
     return this.alertsService.listForUser(userId);
   }
 
-  // NUEVO: GET /alerts/active → solo alertas activas (isActive = true)
-  @Get('active')
-  async listMyActiveAlerts(@Req() req: any) {
+  @Get('alerts/active')
+  listActive(@Req() req: any) {
     const userId = this.getUserId(req);
     return this.alertsService.listActiveForUser(userId);
   }
 
-  // PATCH /alerts/:id/read
-  // body esperado: { read: true | false }
-  @Patch(':id/read')
-  async updateRead(
-    @Req() req: any,
-    @Param('id') id: string,
-    @Body() body: { read?: boolean },
-  ) {
+  @Get('savings/alerts/active')
+  listActiveForSavings(@Req() req: any) {
     const userId = this.getUserId(req);
-
-    if (typeof body.read !== 'boolean') {
-      throw new BadRequestException('El campo "read" debe ser booleano.');
-    }
-
-    return this.alertsService.updateRead(userId, id, body.read);
+    return this.alertsService.listActiveForUser(userId);
   }
 
-  // DELETE /alerts/:id
-  @Delete(':id')
-  async remove(@Req() req: any, @Param('id') id: string) {
+  @Patch('alerts/:id/read')
+  markRead(@Req() req: any, @Param('id') id: string) {
+    const userId = this.getUserId(req);
+    return this.alertsService.markAsRead(userId, id);
+  }
+
+  @Patch('savings/alerts/:id/read')
+  markReadSavings(@Req() req: any, @Param('id') id: string) {
+    const userId = this.getUserId(req);
+    return this.alertsService.markAsRead(userId, id);
+  }
+
+  @Delete('alerts/:id')
+  remove(@Req() req: any, @Param('id') id: string) {
     const userId = this.getUserId(req);
     return this.alertsService.remove(userId, id);
   }

@@ -26,6 +26,7 @@ type BudgetOverview = {
   progress: number; // 0..1
   isOver: boolean;
   period: 'monthly' | 'weekly' | 'yearly';
+  accountId: string;
 };
 
 type Category = {
@@ -34,7 +35,6 @@ type Category = {
   color?: string | null;
 };
 
-// Ahorro mensual
 type SavingsMonth = {
   month: string; // "YYYY-MM"
   incomeCents: number;
@@ -49,7 +49,6 @@ type SavingsOverview = {
   averageSavingsCents: number;
 };
 
-// Reglas de ahorro
 type SavingsRule = {
   id: string;
   thresholdCents: number;
@@ -73,7 +72,6 @@ type SavingsRule = {
   }[];
 };
 
-// /me para listar cuentas
 type Me = {
   id: string;
   accounts: {
@@ -86,7 +84,6 @@ type Me = {
   }[];
 };
 
-// Transacción mínima para gasto hormiga
 type Tx = {
   id: string;
   valueCents: number;
@@ -100,17 +97,20 @@ export default function AhorroScreen() {
 
   const enabled = !!token;
 
-  // Cuenta sobre la que se calcula ahorro / reglas (presupuestos siguen siendo globales)
   const [currentAccountId, setCurrentAccountId] = useState<string | null>(null);
 
-  // Estado formulario presupuestos
+  // Presupuestos
   const [showForm, setShowForm] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
+    null,
+  );
   const [amount, setAmount] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [editingBudget, setEditingBudget] = useState<BudgetOverview | null>(null);
+  const [editingBudget, setEditingBudget] = useState<BudgetOverview | null>(
+    null,
+  );
 
-  // Estado formulario reglas de ahorro
+  // Reglas de ahorro
   const [showRuleForm, setShowRuleForm] = useState(false);
   const [ruleAccountId, setRuleAccountId] = useState<string | null>(null);
   const [threshold, setThreshold] = useState('');
@@ -118,7 +118,7 @@ export default function AhorroScreen() {
   const [ruleError, setRuleError] = useState<string | null>(null);
   const [editingRule, setEditingRule] = useState<SavingsRule | null>(null);
 
-  // /me para listar cuentas (también usado para el selector superior)
+  // /me
   const { data: meData, isLoading: meLoading } = useQuery<Me>({
     queryKey: ['me'],
     queryFn: async () => {
@@ -129,7 +129,6 @@ export default function AhorroScreen() {
     staleTime: 30_000,
   });
 
-  // cuando llegan las cuentas, elegimos una por defecto si no hay
   useEffect(() => {
     if (!meData || currentAccountId) return;
     if (meData.accounts.length > 0) {
@@ -137,27 +136,28 @@ export default function AhorroScreen() {
     }
   }, [meData, currentAccountId]);
 
-  // Budgets overview (global por usuario, no por cuenta)
+  // Presupuestos (overview) por CUENTA
   const {
     data: budgets = [],
-    isLoading,
-    isError,
-    error,
-    refetch,
-    isRefetching,
+    isLoading: budgetsLoading,
+    isError: budgetsError,
+    error: budgetsErrorObj,
+    refetch: refetchBudgets,
+    isRefetching: budgetsRefetching,
   } = useQuery<BudgetOverview[]>({
-    queryKey: ['budgets', 'overview'],
+    queryKey: ['budgets', 'overview', currentAccountId],
     queryFn: async () => {
-      const { data } = await api.get('/budgets/overview');
+      const { data } = await api.get('/budgets/overview', {
+        params: { accountId: currentAccountId },
+      });
       return data as BudgetOverview[];
     },
-    enabled,
+    enabled: enabled && !!currentAccountId,
     staleTime: 30_000,
     refetchOnMount: 'always',
     retry: 0,
   });
 
-  // Categorías para el formulario (solo se usan al crear)
   const categoriesQuery = useQuery<Category[]>({
     queryKey: ['categories'],
     queryFn: async () => {
@@ -168,7 +168,7 @@ export default function AhorroScreen() {
     staleTime: 60_000,
   });
 
-  // Ahorro mensual (últimos 6 meses) por cuenta
+  // Ahorro mensual (cuenta)
   const {
     data: savingsOverview,
     isLoading: savingsLoading,
@@ -185,7 +185,7 @@ export default function AhorroScreen() {
     staleTime: 60_000,
   });
 
-  // Gasto hormiga del mes actual en la cuenta seleccionada
+  // Gasto hormiga mes actual
   const {
     data: hormigaTxs = [],
     isLoading: hormigaLoading,
@@ -241,7 +241,7 @@ export default function AhorroScreen() {
     return { count, totalCents: total };
   }, [hormigaTxs]);
 
-  // Reglas de ahorro (umbral por cuenta) → traemos todas y filtramos por cuenta visible
+  // Reglas de ahorro
   const {
     data: allSavingsRules = [],
     isLoading: rulesLoading,
@@ -277,7 +277,9 @@ export default function AhorroScreen() {
     setEditingRule(null);
   };
 
-  // Mutación crear / actualizar presupuesto (upsert) – GLOBAL (sin accountId)
+  // ========= MUTACIONES =========
+
+  // Presupuesto: crear/actualizar (monto en PESOS → guardar en CENTAVOS)
   const createBudgetMutation = useMutation({
     mutationFn: async (vars: {
       categoryId: string;
@@ -286,7 +288,13 @@ export default function AhorroScreen() {
     }) => {
       setSaveError(null);
 
+      const accountId = editingBudget?.accountId ?? currentAccountId;
+      if (!accountId) {
+        throw new Error('No hay cuenta seleccionada para el presupuesto.');
+      }
+
       const body = {
+        accountId,
         categoryId: vars.categoryId,
         amountCents: vars.amountCents,
         period: vars.period,
@@ -305,13 +313,19 @@ export default function AhorroScreen() {
         err?.response?.data?.message ||
         err?.message ||
         'Error al guardar el presupuesto';
+
+      // LOG DETALLADO DEL 400 QUE VIENE DEL BACKEND
+      console.log(
+        'Budget error payload:',
+        JSON.stringify(err?.response?.data, null, 2),
+      );
+
       const full = status ? `${status} · ${msg}` : msg;
       setSaveError(full);
       console.error('Error creando/actualizando presupuesto:', err);
     },
   });
 
-  // Mutación eliminar presupuesto
   const deleteBudgetMutation = useMutation({
     mutationFn: async (id: string) => {
       setSaveError(null);
@@ -333,7 +347,7 @@ export default function AhorroScreen() {
     },
   });
 
-  // Mutación crear regla de ahorro
+  // Regla: crear (inputs en PESOS → guardar CENTAVOS)
   const createRuleMutation = useMutation({
     mutationFn: async (vars: {
       accountId: string;
@@ -370,7 +384,7 @@ export default function AhorroScreen() {
     },
   });
 
-  // Mutación actualizar regla de ahorro
+  // Regla: actualizar
   const updateRuleMutation = useMutation({
     mutationFn: async (vars: {
       id: string;
@@ -406,7 +420,6 @@ export default function AhorroScreen() {
     },
   });
 
-  // Mutación eliminar regla de ahorro
   const deleteRuleMutation = useMutation({
     mutationFn: async (id: string) => {
       setRuleError(null);
@@ -429,13 +442,15 @@ export default function AhorroScreen() {
     },
   });
 
+  // ========= HANDLERS =========
+
   const handleSubmitBudget = () => {
     if (!selectedCategoryId && !editingBudget) return;
     if (!amount.trim()) return;
 
     const raw = amount.replace(/\D/g, '');
-    const amountNumber = Number(raw);
-    if (!amountNumber || Number.isNaN(amountNumber)) {
+    const amountPesos = Number(raw);
+    if (!amountPesos || Number.isNaN(amountPesos)) {
       setSaveError('Monto inválido. Escribe solo números, por ejemplo 150000.');
       return;
     }
@@ -445,9 +460,12 @@ export default function AhorroScreen() {
 
     const categoryId = (selectedCategoryId ?? editingBudget?.category.id)!;
 
+    // PESOS → CENTAVOS
+    const amountCents = amountPesos * 100;
+
     createBudgetMutation.mutate({
       categoryId,
-      amountCents: amountNumber,
+      amountCents,
       period,
     });
   };
@@ -468,38 +486,40 @@ export default function AhorroScreen() {
     }
 
     const thRaw = threshold.replace(/\D/g, '');
-    const thNumber = Number(thRaw);
-    if (!thNumber || Number.isNaN(thNumber)) {
+    const thPesos = Number(thRaw);
+    if (!thPesos || Number.isNaN(thPesos)) {
       setRuleError(
         'Saldo mínimo inválido. Escribe solo números, por ejemplo 100000.',
       );
       return;
     }
 
-    let marginNumber: number | null = null;
+    let marginCents: number | null = null;
     if (margin.trim()) {
       const mRaw = margin.replace(/\D/g, '');
-      const mNum = Number(mRaw);
-      if (!mNum || Number.isNaN(mNum)) {
+      const mPesos = Number(mRaw);
+      if (!mPesos || Number.isNaN(mPesos)) {
         setRuleError(
           'Aviso anticipado inválido. Escribe solo números, por ejemplo 20000.',
         );
         return;
       }
-      marginNumber = mNum;
+      marginCents = mPesos * 100;
     }
+
+    const thresholdCents = thPesos * 100;
 
     if (editingRule) {
       updateRuleMutation.mutate({
         id: editingRule.id,
-        thresholdCents: thNumber,
-        notifyMarginCents: marginNumber,
+        thresholdCents,
+        notifyMarginCents: marginCents,
       });
     } else {
       createRuleMutation.mutate({
-        accountId: ruleAccountId!, // ya validado arriba
-        thresholdCents: thNumber,
-        notifyMarginCents: marginNumber,
+        accountId: ruleAccountId!, // validado arriba
+        thresholdCents,
+        notifyMarginCents: marginCents,
       });
     }
   };
@@ -508,6 +528,8 @@ export default function AhorroScreen() {
     if (!editingRule) return;
     deleteRuleMutation.mutate(editingRule.id);
   };
+
+  // ========= ESTADOS BASE =========
 
   if (!token) {
     return (
@@ -544,7 +566,7 @@ export default function AhorroScreen() {
     );
   }
 
-  if (isLoading) {
+  if (budgetsLoading) {
     return (
       <View style={s.center}>
         <ActivityIndicator />
@@ -553,11 +575,11 @@ export default function AhorroScreen() {
     );
   }
 
-  if (isError) {
-    const status = (error as any)?.response?.status;
+  if (budgetsError) {
+    const status = (budgetsErrorObj as any)?.response?.status;
     const msg =
-      (error as any)?.response?.data?.message ||
-      (error as any)?.message ||
+      (budgetsErrorObj as any)?.response?.data?.message ||
+      (budgetsErrorObj as any)?.message ||
       'Error al cargar presupuestos';
     return (
       <View style={s.center}>
@@ -569,16 +591,14 @@ export default function AhorroScreen() {
     );
   }
 
-  // resumen de alertas de presupuesto
+  // resumen alertas
   const overCount = budgets.filter((b) => b.isOver).length;
   const nearCount = budgets.filter((b) => !b.isOver && b.progress >= 0.8).length;
 
-  // cuántas reglas tienen al menos una alerta activa (solo de cuenta actual)
   const rulesAlertCount = savingsRules.filter(
     (r) => r.alerts && r.alerts.some((a) => a.isActive),
   ).length;
 
-  // valores para el resumen de regla de ahorro (en el modal)
   const thDisplay = Number(threshold.replace(/\D/g, '')) || 0;
   const marginDisplay = Number(margin.replace(/\D/g, '')) || 0;
   const triggerDisplay = thDisplay + (margin.trim() ? marginDisplay : 0);
@@ -592,6 +612,8 @@ export default function AhorroScreen() {
       ? `Cuenta ${accountForHeader.accountNumber}`
       : `Cuenta ${currentAccountId.slice(0, 6)}…`);
 
+  // ========= UI =========
+
   return (
     <>
       <ScrollView
@@ -599,8 +621,21 @@ export default function AhorroScreen() {
         contentContainerStyle={s.content}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={refetch}
+            refreshing={
+              budgetsRefetching || savingsLoading || hormigaLoading || rulesLoading
+            }
+            onRefresh={() => {
+              // Presupuestos
+              refetchBudgets();
+              // Ahorro mensual
+              queryClient.invalidateQueries({ queryKey: ['savings', 'overview'] });
+              // Gasto hormiga
+              queryClient.invalidateQueries({
+                queryKey: ['transactions', 'gasto-hormiga'],
+              });
+              // Reglas de ahorro
+              queryClient.invalidateQueries({ queryKey: ['savings', 'rules'] });
+            }}
             tintColor={colors.text}
           />
         }
@@ -648,7 +683,7 @@ export default function AhorroScreen() {
           <Text style={s.subtitleSmall}>Cuenta actual: {accountLabel}</Text>
         </View>
 
-        {/* PRESUPUESTOS (globales) */}
+        {/* Presupuestos */}
         <View style={s.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={s.title}>Presupuestos del mes</Text>
@@ -720,7 +755,8 @@ export default function AhorroScreen() {
                 onPress={() => {
                   setEditingBudget(b);
                   setSelectedCategoryId(b.category.id);
-                  setAmount(String(b.amountCents));
+                  // CENTAVOS → PESOS para el input
+                  setAmount(String(Math.round(b.amountCents / 100)));
                   setSaveError(null);
                   setShowForm(true);
                 }}
@@ -766,7 +802,7 @@ export default function AhorroScreen() {
           })
         )}
 
-        {/* Sección de ahorro mensual */}
+        {/* Ahorro mensual */}
         <View style={{ marginTop: 20 }}>
           <Text style={s.title}>Ahorro mensual (cuenta actual)</Text>
           <Text style={s.subtitle}>
@@ -797,7 +833,8 @@ export default function AhorroScreen() {
               )}
 
               <Text style={s.savingsSub}>
-                Ahorro promedio mensual: {fmtCLP(savingsOverview.averageSavingsCents)}
+                Ahorro promedio mensual:{' '}
+                {fmtCLP(savingsOverview.averageSavingsCents)}
               </Text>
 
               {savingsOverview.months.map((m) => {
@@ -832,7 +869,7 @@ export default function AhorroScreen() {
             </View>
           )}
 
-          {/* Resumen de gasto hormiga del mes actual */}
+          {/* Gasto hormiga mes actual */}
           {!hormigaLoading && hormigaSummary.count > 0 && (
             <View style={s.hormigaCard}>
               <Text style={s.hormigaTitle}>Gasto hormiga este mes</Text>
@@ -841,7 +878,8 @@ export default function AhorroScreen() {
                 “gasto hormiga” en esta cuenta.
               </Text>
               <Text style={s.hormigaText}>
-                Total gastado en estos movimientos: {fmtCLP(hormigaSummary.totalCents)}.
+                Total gastado en estos movimientos:{' '}
+                {fmtCLP(hormigaSummary.totalCents)}.
               </Text>
               <Text style={s.hormigaText}>
                 Reducir un poco estos gastos puede mejorar tu tasa de ahorro mensual.
@@ -850,7 +888,7 @@ export default function AhorroScreen() {
           )}
         </View>
 
-        {/* Sección reglas de ahorro */}
+        {/* Reglas de ahorro */}
         <View style={{ marginTop: 24, marginBottom: 8 }}>
           <View style={s.headerRow}>
             <View style={{ flex: 1 }}>
@@ -865,7 +903,7 @@ export default function AhorroScreen() {
               style={s.addButton}
               onPress={() => {
                 setEditingRule(null);
-                setRuleAccountId(currentAccountId); // por defecto la cuenta visible
+                setRuleAccountId(currentAccountId);
                 setThreshold('');
                 setMargin('');
                 setRuleError(null);
@@ -935,10 +973,11 @@ export default function AhorroScreen() {
                     onPress={() => {
                       setEditingRule(rule);
                       setRuleAccountId(rule.account.id);
-                      setThreshold(String(rule.thresholdCents));
+                      // CENTAVOS → PESOS en inputs
+                      setThreshold(String(Math.round(rule.thresholdCents / 100)));
                       setMargin(
                         rule.notifyMarginCents
-                          ? String(rule.notifyMarginCents)
+                          ? String(Math.round(rule.notifyMarginCents / 100))
                           : '',
                       );
                       setRuleError(null);
@@ -992,7 +1031,7 @@ export default function AhorroScreen() {
         </View>
       </ScrollView>
 
-      {/* Modal para crear/editar presupuesto */}
+      {/* Modal presupuesto */}
       <Modal
         visible={showForm}
         animationType="slide"
@@ -1005,7 +1044,6 @@ export default function AhorroScreen() {
               {editingBudget ? 'Editar presupuesto' : 'Nuevo presupuesto mensual'}
             </Text>
 
-            {/* Categoría */}
             <View style={s.modalSection}>
               <Text style={s.label}>Categoría</Text>
 
@@ -1050,7 +1088,6 @@ export default function AhorroScreen() {
               )}
             </View>
 
-            {/* Monto */}
             <View style={s.modalSection}>
               <Text style={s.label}>Monto mensual (CLP)</Text>
               <TextInput
@@ -1067,7 +1104,6 @@ export default function AhorroScreen() {
               <Text style={[s.err, { marginBottom: 6 }]}>{saveError}</Text>
             )}
 
-            {/* Botones */}
             <View style={s.modalButtonsRow}>
               {editingBudget && (
                 <Pressable
@@ -1118,7 +1154,7 @@ export default function AhorroScreen() {
         </View>
       </Modal>
 
-      {/* Modal para crear/editar regla de ahorro */}
+      {/* Modal regla de ahorro */}
       <Modal
         visible={showRuleForm}
         animationType="slide"
@@ -1131,7 +1167,6 @@ export default function AhorroScreen() {
               {editingRule ? 'Editar regla de ahorro' : 'Nueva regla de ahorro'}
             </Text>
 
-            {/* Cuenta */}
             <View style={s.modalSection}>
               <Text style={s.label}>Cuenta</Text>
 
@@ -1193,9 +1228,10 @@ export default function AhorroScreen() {
               )}
             </View>
 
-            {/* Saldo mínimo */}
             <View style={s.modalSection}>
-              <Text style={s.label}>Saldo mínimo que quieres mantener (CLP)</Text>
+              <Text style={s.label}>
+                Saldo mínimo que quieres mantener (CLP)
+              </Text>
               <Text style={s.fieldHelp}>
                 Es el saldo mínimo que quieres mantener en esta cuenta. Cuando el saldo
                 baja de este monto, se activa la alerta.
@@ -1210,7 +1246,6 @@ export default function AhorroScreen() {
               />
             </View>
 
-            {/* Aviso anticipado */}
             <View style={s.modalSection}>
               <Text style={s.label}>Avisarme un poco antes (CLP, opcional)</Text>
               <Text style={s.fieldHelp}>
@@ -1233,7 +1268,10 @@ export default function AhorroScreen() {
               {thDisplay > 0 && (
                 <Text style={s.summaryText}>
                   Te avisaremos cuando el saldo de esta cuenta baje de{' '}
-                  {fmtCLP(margin.trim() ? triggerDisplay : thDisplay)}.
+                  {fmtCLP(
+                    (margin.trim() ? triggerDisplay : thDisplay) * 100,
+                  )}
+                  .
                 </Text>
               )}
             </View>
@@ -1242,7 +1280,6 @@ export default function AhorroScreen() {
               <Text style={[s.err, { marginBottom: 6 }]}>{ruleError}</Text>
             )}
 
-            {/* Botones regla */}
             <View style={s.modalButtonsRow}>
               {editingRule && (
                 <Pressable
@@ -1477,7 +1514,6 @@ const s = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Sección ahorro
   savingsCard: {
     marginTop: 8,
     padding: 12,
@@ -1518,7 +1554,6 @@ const s = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Tarjeta gasto hormiga
   hormigaCard: {
     marginTop: 10,
     padding: 12,
@@ -1539,7 +1574,6 @@ const s = StyleSheet.create({
     marginTop: 2,
   },
 
-  // Reglas de ahorro
   rulesCard: {
     marginTop: 8,
     padding: 12,
@@ -1602,7 +1636,6 @@ const s = StyleSheet.create({
     color: colors.textMuted,
   },
 
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',

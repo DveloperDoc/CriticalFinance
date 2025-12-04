@@ -15,15 +15,21 @@ type MlSummary = {
   noCategory: number;
 };
 
-export function MlSummaryCard() {
+type Props = {
+  accountId?: string | null;
+};
+
+export function MlSummaryCard({ accountId }: Props) {
   const { token } = useAuth();
-  const enabled = !!token;
+  const enabled = !!token && !!accountId;
 
   const { data, isLoading, isError } = useQuery<MlSummary>({
-    queryKey: ['ml-summary'],
+    queryKey: ['ml-summary', accountId],
     enabled,
     queryFn: async () => {
-      const r = await api.get('/transactions/ml-summary');
+      const r = await api.get('/transactions/ml-summary', {
+        params: { accountId },
+      });
       return r.data as MlSummary;
     },
     staleTime: 60_000,

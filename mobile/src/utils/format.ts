@@ -1,12 +1,12 @@
 // utils/format.ts
 
-// Formatea valores en pesos chilenos tal como vienen del backend (sin dividir por 100)
-export const fmtCLP = (amount: number) =>
+// Recibe SIEMPRE montos en centavos (valueCents, balanceCents, amountCents, etc.)
+export const fmtCLP = (amountCents: number) =>
   new Intl.NumberFormat('es-CL', {
     style: 'currency',
     currency: 'CLP',
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format((amountCents ?? 0) / 100);
 
 // Fecha estándar para todos los movimientos, alertas, etc.
 export const fmtFecha = (iso: string) =>

@@ -69,7 +69,7 @@ export class AlertsService {
     return { ok: true };
   }
 
-  // Crear alerta asociada a un presupuesto
+  // Crear alerta asociada a un presupuesto (solo creación; preferir upsertBudgetAlert para lógica completa)
   async createBudgetAlert(
     userId: string,
     params: {
@@ -98,6 +98,112 @@ export class AlertsService {
           period: params.period,
           startMonth: params.startMonth,
         },
+      },
+    });
+  }
+
+  // Crear / actualizar / resolver alerta de presupuesto
+  async upsertBudgetAlert(
+    userId: string,
+    params: {
+      accountId: string;
+      categoryId: string;
+      categoryName: string;
+      progress: number; // 0..1
+      isOver: boolean;
+    },
+  ) {
+    const { accountId, categoryId, categoryName, progress, isOver } = params;
+
+    // Si está sano (< 0.8) y no está pasado → resolver alerta existente
+    if (progress < 0.8 && !isOver) {
+      await this.prisma.alert.updateMany({
+        where: {
+          userId,
+          accountId,
+          type: AlertType.budget_over,
+          payload: {
+            path: ['categoryId'],
+            equals: categoryId,
+          },
+          isActive: true,
+        },
+        data: {
+          isActive: false,
+          readAt: new Date(),
+        },
+      });
+
+      return;
+    }
+
+    // Determinar nivel
+    const level = isOver ? AlertLevel.CRITICAL : AlertLevel.WARNING;
+
+    const message = isOver
+      ? `La categoría "${categoryName}" ya superó su presupuesto mensual.`
+      : `La categoría "${categoryName}" está cerca de su límite de presupuesto.`;
+
+    const payload = {
+      categoryId,
+      categoryName,
+      isOver,
+      progress,
+    };
+
+    // Buscar alerta existente activa para esa categoría + cuenta
+    const existing = await this.prisma.alert.findFirst({
+      where: {
+        userId,
+        accountId,
+        type: AlertType.budget_over,
+        payload: {
+          path: ['categoryId'],
+          equals: categoryId,
+        },
+        isActive: true,
+      },
+    });
+
+    if (!existing) {
+      // Crear alerta nueva
+      return this.prisma.alert.create({
+        data: {
+          userId,
+          accountId,
+          type: AlertType.budget_over,
+          source: AlertSource.system,
+          level,
+          message,
+          payload,
+        },
+      });
+    }
+
+    // Actualizar alerta existente
+    return this.prisma.alert.update({
+      where: { id: existing.id },
+      data: {
+        level,
+        message,
+        payload,
+        isActive: true,
+      },
+    });
+  }
+
+  // Marcar como resueltas las alertas de anomalía ligadas a una transacción
+  async resolveAnomalyAlerts(userId: string, transactionId: string) {
+    await this.prisma.alert.updateMany({
+      where: {
+        userId,
+        transactionId,
+        type: AlertType.anomaly,
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+        readAt: new Date(),
       },
     });
   }
@@ -145,7 +251,7 @@ export class AlertsService {
       transactionId: string;
       amountCents: number;
       description?: string | null;
-      merchant?: string | null; // <-- agregado
+      merchant?: string | null;
     },
   ) {
     const { transactionId, amountCents, description, merchant } = params;
@@ -169,7 +275,7 @@ export class AlertsService {
     return this.prisma.alert.create({
       data: {
         userId,
-        type: AlertType.anomaly, // seguimos usando "anomaly" y diferenciamos por payload.kind
+        type: AlertType.anomaly, // diferenciamos por payload.kind
         source: AlertSource.ml,
         level: AlertLevel.WARNING,
         transactionId,

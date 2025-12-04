@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -39,12 +39,35 @@ type Tx = {
   mlPredictedCategory?: Category;
   mlLabelSource?: 'model' | 'manual' | 'imported' | null;
 
-  // NUEVO: flag de gasto hormiga
+  // flag de gasto hormiga
   isGastoHormiga?: boolean;
 };
 
+type MeAccount = {
+  id: string;
+  alias: string | null;
+  bank: string | null;
+  accountNumber: string | null;
+  currency: string;
+  balanceCents: number;
+};
+
+type Me = { id: string; email: string; accounts: MeAccount[] };
+
 type MonthFilterKey = 'all' | 'this-month' | 'last-month' | 'last-3-months';
 type SortKey = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc';
+
+const normalizeMe = (raw: any): Me => {
+  if (!raw) return { id: '', email: '', accounts: [] };
+  const base = raw?.data ?? raw;
+  return {
+    id: base?.id ?? '',
+    email: base?.email ?? '',
+    accounts: Array.isArray(base?.accounts)
+      ? (base.accounts as MeAccount[])
+      : [],
+  };
+};
 
 const normalize = (raw: any): Tx[] => {
   if (Array.isArray(raw)) return raw as Tx[];
@@ -93,11 +116,66 @@ export default function Movimientos() {
   const router = useRouter();
   const enabled = !!token;
 
-  // Filtros
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [monthFilter, setMonthFilter] = useState<MonthFilterKey>('this-month');
+  // --------- /me para obtener cuentas ---------
+  const meQ = useQuery<Me>({
+    queryKey: ['me'],
+    queryFn: async () => normalizeMe((await api.get('/me')).data),
+    enabled,
+    staleTime: 30_000,
+    refetchOnMount: 'always',
+    retry: 0,
+  });
+
+  const accounts = meQ.data?.accounts ?? [];
+
+  // cuenta seleccionada
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
+    null,
+  );
+
+  // asegurar cuenta seleccionada válida cuando llegan los datos de /me
+  useEffect(() => {
+    if (!accounts.length) {
+      setSelectedAccountId(null);
+      return;
+    }
+
+    if (!selectedAccountId) {
+      setSelectedAccountId(accounts[0].id);
+      return;
+    }
+
+    const stillExists = accounts.some((a) => a.id === selectedAccountId);
+    if (!stillExists) {
+      setSelectedAccountId(accounts[0].id);
+    }
+  }, [accounts, selectedAccountId]);
+
+  const accId = selectedAccountId;
+
+  const currentAccount: MeAccount | null =
+    accId && accounts.length
+      ? accounts.find((a) => a.id === accId) ?? null
+      : null;
+
+  const accountLabel =
+    currentAccount?.alias ||
+    currentAccount?.bank ||
+    (currentAccount?.accountNumber
+      ? `Cuenta ${currentAccount.accountNumber}`
+      : accId
+      ? `Cuenta ${accId.slice(0, 6)}…`
+      : 'Cuenta principal');
+
+  // --------- filtros locales ---------
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
+    null,
+  );
+  const [monthFilter, setMonthFilter] =
+    useState<MonthFilterKey>('this-month');
   const [sortBy, setSortBy] = useState<SortKey>('date-desc');
 
+  // --------- query de transacciones (por cuenta) ---------
   const {
     data: txs = [],
     isLoading,
@@ -106,12 +184,14 @@ export default function Movimientos() {
     refetch,
     isRefetching,
   } = useQuery<Tx[]>({
-    queryKey: ['transactions'],
+    queryKey: ['transactions', accId],
     queryFn: async () => {
-      const r = await api.get('/transactions');
+      const r = await api.get('/transactions', {
+        params: { accountId: accId || undefined },
+      });
       return normalize(r.data);
     },
-    enabled,
+    enabled: enabled && !!accId && !meQ.isLoading,
     staleTime: 60_000,
     refetchOnMount: 'always',
     retry: 0,
@@ -148,13 +228,11 @@ export default function Movimientos() {
         toDate(b.bookedAt).getTime() - toDate(a.bookedAt).getTime();
 
       if (sortBy === 'date-desc') {
-        // Más nuevos primero (usa fecha + hora)
-        return dateDiff;
+        return dateDiff; // nuevos primero
       }
 
       if (sortBy === 'date-asc') {
-        // Más antiguos primero
-        return -dateDiff;
+        return -dateDiff; // antiguos primero
       }
 
       const absA = Math.abs(a.valueCents ?? 0);
@@ -171,10 +249,9 @@ export default function Movimientos() {
     // proyección a item de UI
     return list.map((tx) => {
       const raw = tx.valueCents ?? 0;
-      const isDebit = raw < 0; // gasto si es negativo
+      const isDebit = raw < 0;
       const abs = Math.abs(raw);
 
-      // mostramos fecha + hora para que se note bien el orden
       const fecha = tx.bookedAt
         ? new Date(tx.bookedAt).toLocaleString('es-CL', {
             day: '2-digit',
@@ -213,12 +290,12 @@ export default function Movimientos() {
         estaConfirmada,
         isDebit,
         amountFmt: fmtCLP(abs),
-        // NUEVO: propagamos el flag al item de UI
         isGastoHormiga: !!tx.isGastoHormiga,
       };
     });
   }, [txs, selectedCategoryId, monthFilter, sortBy]);
 
+  // --------- estados globales ---------
   if (!enabled) {
     return (
       <View style={s.center}>
@@ -227,7 +304,23 @@ export default function Movimientos() {
     );
   }
 
-  if (isLoading) {
+  if (meQ.isLoading || !meQ.data) {
+    return (
+      <View style={s.center}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  if (!accounts.length) {
+    return (
+      <View style={s.center}>
+        <Text style={s.empty}>Tu usuario aún no tiene cuentas asociadas.</Text>
+      </View>
+    );
+  }
+
+  if (isLoading && !txs.length) {
     return (
       <View style={s.center}>
         <ActivityIndicator />
@@ -257,9 +350,48 @@ export default function Movimientos() {
       <View style={s.header}>
         <Text style={s.headerTitle}>Movimientos</Text>
         <Text style={s.headerSubtitle}>
-          Filtra por periodo, categoría y ordena por fecha o monto.
+          Filtra por cuenta, periodo, categoría y ordena por fecha o monto.
+        </Text>
+        <Text style={s.headerAccount}>
+          Cuenta actual: {accountLabel}
         </Text>
       </View>
+
+      {/* Selector de cuenta (mismo estilo que ahorro/index) */}
+      {accounts.length > 1 && (
+        <View style={s.accountsRow}>
+          {accounts.map((a) => {
+            const selected = a.id === accId;
+            const label =
+              a.alias ||
+              a.bank ||
+              (a.accountNumber
+                ? `Cuenta ${a.accountNumber}`
+                : `Cuenta ${a.id.slice(0, 6)}…`);
+            return (
+              <TouchableOpacity
+                key={a.id}
+                style={[
+                  s.accountChip,
+                  selected && s.accountChipSelected,
+                ]}
+                onPress={() => setSelectedAccountId(a.id)}
+                activeOpacity={0.85}
+              >
+                <Text
+                  style={[
+                    s.accountChipText,
+                    selected && s.accountChipTextSelected,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
 
       {/* Bloque de filtros */}
       <View style={s.filtersBlock}>
@@ -282,7 +414,10 @@ export default function Movimientos() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[s.chip, monthFilter === 'this-month' && s.chipSelected]}
+              style={[
+                s.chip,
+                monthFilter === 'this-month' && s.chipSelected,
+              ]}
               onPress={() => setMonthFilter('this-month')}
             >
               <Text
@@ -296,7 +431,10 @@ export default function Movimientos() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[s.chip, monthFilter === 'last-month' && s.chipSelected]}
+              style={[
+                s.chip,
+                monthFilter === 'last-month' && s.chipSelected,
+              ]}
               onPress={() => setMonthFilter('last-month')}
             >
               <Text
@@ -387,7 +525,10 @@ export default function Movimientos() {
           <Text style={s.filterLabel}>Ordenar por</Text>
           <View style={s.chipsRow}>
             <TouchableOpacity
-              style={[s.chipSmall, sortBy === 'date-desc' && s.chipSelected]}
+              style={[
+                s.chipSmall,
+                sortBy === 'date-desc' && s.chipSelected,
+              ]}
               onPress={() => setSortBy('date-desc')}
             >
               <Text
@@ -401,7 +542,10 @@ export default function Movimientos() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[s.chipSmall, sortBy === 'date-asc' && s.chipSelected]}
+              style={[
+                s.chipSmall,
+                sortBy === 'date-asc' && s.chipSelected,
+              ]}
               onPress={() => setSortBy('date-asc')}
             >
               <Text
@@ -415,7 +559,10 @@ export default function Movimientos() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[s.chipSmall, sortBy === 'amount-desc' && s.chipSelected]}
+              style={[
+                s.chipSmall,
+                sortBy === 'amount-desc' && s.chipSelected,
+              ]}
               onPress={() => setSortBy('amount-desc')}
             >
               <Text
@@ -429,7 +576,10 @@ export default function Movimientos() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[s.chipSmall, sortBy === 'amount-asc' && s.chipSelected]}
+              style={[
+                s.chipSmall,
+                sortBy === 'amount-asc' && s.chipSelected,
+              ]}
               onPress={() => setSortBy('amount-asc')}
             >
               <Text
@@ -531,6 +681,39 @@ const s = StyleSheet.create({
     color: (colors as any).textMuted || '#6b7280',
     marginTop: 2,
   },
+  headerAccount: {
+    fontSize: 11,
+    color: (colors as any).textMuted || '#6b7280',
+    marginTop: 2,
+  },
+
+  // selector de cuentas
+  accountsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  accountChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  accountChipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  accountChipText: {
+    fontSize: 12,
+    color: colors.text,
+  },
+  accountChipTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
+  },
 
   center: {
     flex: 1,
@@ -612,7 +795,6 @@ const s = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // NUEVO: chip de gasto hormiga
   hormigaChip: {
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -629,13 +811,9 @@ const s = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-
-  // Gasto → rojo
   amountDebit: {
     color: (colors as any).danger ?? '#ef4444',
   },
-
-  // Ahorro / ingreso → verde
   amountCredit: {
     color: (colors as any).success ?? '#22c55e',
   },

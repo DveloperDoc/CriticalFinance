@@ -16,18 +16,23 @@ type Props = {
 type Alert = {
   id: string;
   readAt: string | null;
+  isActive?: boolean;
 };
 
-export default function AppHeader({ title = 'CriticalFinance', showChips = true }: Props) {
+export default function AppHeader({
+  title = 'CriticalFinance',
+  showChips = true,
+}: Props) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { token } = useAuth();
 
-  // Cargar alertas para mostrar badge
+  // Cargar alertas activas para mostrar badge
   const { data: alerts = [] } = useQuery<Alert[]>({
-    queryKey: ['alerts'], // <-- clave unificada
+    queryKey: ['alerts'], // misma clave que en alertas.tsx
     queryFn: async () => {
-      const { data } = await api.get('/alerts');
+      // mismo endpoint que en alertas.tsx
+      const { data } = await api.get('/alerts/active');
       return data as Alert[];
     },
     enabled: !!token,
@@ -35,7 +40,10 @@ export default function AppHeader({ title = 'CriticalFinance', showChips = true 
     refetchOnMount: 'always',
   });
 
-  const unreadCount = alerts.filter(a => !a.readAt).length;
+  // Cuenta solo alertas activas no leídas
+  const unreadCount = alerts.filter(
+    (a) => !a.readAt && a.isActive !== false,
+  ).length;
   const badgeLabel = unreadCount > 9 ? '9+' : String(unreadCount);
 
   return (

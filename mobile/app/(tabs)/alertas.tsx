@@ -1,5 +1,5 @@
 // mobile/app/(tabs)/alertas.tsx
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ type AlertPayload = {
   categoryId?: string;
   categoryName?: string;
   isOver?: boolean;
-  transactionId?: string; // para anomalías, si aplica
+  transactionId?: string;
 
   // extras posibles para reglas de ahorro
   accountId?: string;
@@ -34,16 +34,28 @@ type AlertPayload = {
   notifyMarginCents?: number;
 };
 
+type AlertLevel = 'INFO' | 'WARNING' | 'CRITICAL' | null;
+
+type AlertType =
+  | 'budget_over'
+  | 'anomaly'
+  | 'recurring_due'
+  | 'savings_rule_threshold'
+  | string;
+
 type Alert = {
   id: string;
-  type: string;
+  type: AlertType;
   source: string;
-  level?: 'INFO' | 'WARNING' | 'CRITICAL' | null;
+  level?: AlertLevel;
   message?: string | null;
   payload: AlertPayload | null;
   createdAt: string;
   readAt: string | null;
   isActive?: boolean;
+
+  // viene directo del backend (columna accountId del modelo Alert)
+  accountId?: string | null;
 };
 
 // Mapeo de tipo técnico → título amigable
@@ -54,10 +66,19 @@ const TYPE_LABELS: Record<string, string> = {
   savings_rule_threshold: 'Saldo bajo en tu cuenta',
 };
 
+type FilterType =
+  | 'ALL'
+  | 'budget_over'
+  | 'savings_rule_threshold'
+  | 'anomaly'
+  | 'recurring_due';
+
 export default function AlertasScreen() {
   const { token } = useAuth();
   const queryClient = useQueryClient();
   const router = useRouter();
+
+  const [filterType, setFilterType] = useState<FilterType>('ALL');
 
   const {
     data: alerts = [],
@@ -65,11 +86,11 @@ export default function AlertasScreen() {
     isError,
     error,
     refetch,
+    isRefetching,
   } = useQuery<Alert[]>({
     queryKey: ['alerts'],
     queryFn: async () => {
-      // ahora usamos el endpoint de savings (solo alertas activas)
-      const { data } = await api.get('/savings/alerts/active');
+      const { data } = await api.get('/alerts/active');
       return data as Alert[];
     },
     enabled: !!token,
@@ -79,8 +100,7 @@ export default function AlertasScreen() {
   // Mutación: marcar alerta como leída/resuelta (tap)
   const markReadMutation = useMutation({
     mutationFn: async (id: string) => {
-      // nuevo endpoint: PATCH /savings/alerts/:id/read sin body
-      await api.patch(`/savings/alerts/${id}/read`);
+      await api.patch(`/alerts/${id}/read`);
     },
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: ['alerts'] });
@@ -88,11 +108,9 @@ export default function AlertasScreen() {
 
       if (previous) {
         const nowIso = new Date().toISOString();
-        // la marcamos como leída/inactiva en cache
         const updated = previous.map((a) =>
           a.id === id ? { ...a, readAt: nowIso, isActive: false } : a,
         );
-        // como la query trae solo activas, la podemos sacar de inmediato
         queryClient.setQueryData<Alert[]>(
           ['alerts'],
           updated.filter((a) => a.isActive !== false),
@@ -114,14 +132,13 @@ export default function AlertasScreen() {
   // Mutación: "eliminar" alerta (swipe) → realmente marcar como leída/resuelta
   const resolveAlertMutation = useMutation({
     mutationFn: async (id: string) => {
-      await api.patch(`/savings/alerts/${id}/read`);
+      await api.patch(`/alerts/${id}/read`);
     },
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: ['alerts'] });
       const previous = queryClient.getQueryData<Alert[]>(['alerts']);
 
       if (previous) {
-        // simplemente la retiramos de la lista de activas
         queryClient.setQueryData<Alert[]>(
           ['alerts'],
           previous.filter((a) => a.id !== id),
@@ -140,32 +157,48 @@ export default function AlertasScreen() {
     },
   });
 
+  const goToMovimientosWithAccount = (accountId?: string | null) => {
+    if (accountId) {
+      router.push({
+        pathname: '/(tabs)/movimientos',
+        params: { accountId },
+      } as any);
+    } else {
+      router.push('/(tabs)/movimientos');
+    }
+  };
+
   const handlePressAlert = (alert: Alert) => {
     if (!token) return;
 
-    // marcar como leída si aún no lo está
     if (!alert.readAt && !markReadMutation.isPending) {
       markReadMutation.mutate(alert.id);
     }
 
-    // navegación según tipo de alerta
-    if (alert.type === 'budget_over') {
-      router.push('/(tabs)/ahorro');
+    // Presupuesto / saldo bajo / pago recurrente → lista de movimientos de la cuenta
+    if (
+      alert.type === 'budget_over' ||
+      alert.type === 'savings_rule_threshold' ||
+      alert.type === 'recurring_due'
+    ) {
+      goToMovimientosWithAccount(alert.accountId ?? alert.payload?.accountId);
       return;
     }
 
+    // Anomalía / gasto hormiga → idealmente detalle de movimiento, si tenemos transactionId
     if (alert.type === 'anomaly') {
       const txId = alert.payload?.transactionId;
       if (txId) {
         router.push(`/movimiento/${txId}`);
+        return;
+      }
+
+      // fallback: ir a movimientos de la cuenta o a pantalla general de anomalías
+      if (alert.accountId || alert.payload?.accountId) {
+        goToMovimientosWithAccount(alert.accountId ?? alert.payload?.accountId);
       } else {
         router.push('/(tabs)/anomalias');
       }
-      return;
-    }
-
-    if (alert.type === 'savings_rule_threshold') {
-      router.push('/(tabs)/ahorro');
       return;
     }
   };
@@ -176,6 +209,41 @@ export default function AlertasScreen() {
     </View>
   );
 
+  // ====== DERIVADOS: resumen + filtros ======
+
+  const activeAlerts = useMemo(
+    () => alerts.filter((a) => a.isActive !== false),
+    [alerts],
+  );
+
+  const totals = useMemo(() => {
+    const total = activeAlerts.length;
+    const unread = activeAlerts.filter((a) => !a.readAt).length;
+    const critical = activeAlerts.filter(
+      (a) => a.level === 'CRITICAL' && a.isActive !== false,
+    ).length;
+    const warning = activeAlerts.filter(
+      (a) => a.level === 'WARNING' && a.isActive !== false,
+    ).length;
+
+    return { total, unread, critical, warning };
+  }, [activeAlerts]);
+
+  const hasAny = activeAlerts.length > 0;
+
+  const filteredAlerts = useMemo(() => {
+    let list = activeAlerts;
+
+    if (filterType !== 'ALL') {
+      list = list.filter((a) => a.type === filterType);
+    }
+
+    return [...list].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }, [activeAlerts, filterType]);
+
   if (!token) {
     return (
       <GestureHandlerRootView style={s.center}>
@@ -184,7 +252,7 @@ export default function AlertasScreen() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading && !alerts.length) {
     return (
       <GestureHandlerRootView style={s.center}>
         <ActivityIndicator />
@@ -213,17 +281,69 @@ export default function AlertasScreen() {
     <GestureHandlerRootView style={s.screen}>
       <Text style={s.title}>Alertas</Text>
 
+      {/* Resumen global */}
+      {hasAny ? (
+        <View style={s.summaryRow}>
+          <Text style={s.summaryText}>
+            Total: {totals.total} · No leídas: {totals.unread}
+          </Text>
+          {!!totals.critical && (
+            <Text style={[s.summaryText, s.summaryCritical]}>
+              Críticas: {totals.critical}
+            </Text>
+          )}
+          {!!totals.warning && (
+            <Text style={[s.summaryText, s.summaryWarning]}>
+              Avisos: {totals.warning}
+            </Text>
+          )}
+        </View>
+      ) : (
+        <Text style={[s.textMuted, { marginBottom: 8 }]}>
+          No tienes alertas activas por ahora.
+        </Text>
+      )}
+
+      {/* Filtros por tipo */}
+      {hasAny && (
+        <View style={s.filtersRow}>
+          {renderFilterChip('ALL', 'Todas', filterType, setFilterType)}
+          {renderFilterChip(
+            'budget_over',
+            'Presupuesto',
+            filterType,
+            setFilterType,
+          )}
+          {renderFilterChip(
+            'savings_rule_threshold',
+            'Reglas ahorro',
+            filterType,
+            setFilterType,
+          )}
+          {renderFilterChip(
+            'recurring_due',
+            'Pagos recurrentes',
+            filterType,
+            setFilterType,
+          )}
+          {renderFilterChip('anomaly', 'Anomalías', filterType, setFilterType)}
+        </View>
+      )}
+
       <FlatList
-        data={alerts}
+        data={filteredAlerts}
         keyExtractor={(a) => a.id}
-        refreshing={false}
+        refreshing={
+          isRefetching ||
+          markReadMutation.isPending ||
+          resolveAlertMutation.isPending
+        }
         onRefresh={refetch}
         renderItem={({ item }) => {
           const friendlyTitle = TYPE_LABELS[item.type] ?? 'Alerta';
           const isUnread = !item.readAt;
           const level = item.level ?? null;
 
-          // Línea extra según tipo de alerta
           let extraLine = '';
           if (item.type === 'budget_over') {
             const cat = item.payload?.categoryName ?? item.payload?.categoryId;
@@ -252,6 +372,9 @@ export default function AlertasScreen() {
               extraLine =
                 'Se detectó un movimiento inusual en tus transacciones.';
             }
+          } else if (item.type === 'recurring_due') {
+            extraLine =
+              'Tienes un pago recurrente próximo a vencer en los próximos días.';
           }
 
           const createdLabel = fmtFecha(item.createdAt);
@@ -260,7 +383,6 @@ export default function AlertasScreen() {
             <Swipeable
               renderLeftActions={renderLeftActions}
               onSwipeableOpen={(direction) => {
-                // swipe derecha → lado izquierdo ("left")
                 if (direction === 'left' && !resolveAlertMutation.isPending) {
                   resolveAlertMutation.mutate(item.id);
                 }
@@ -306,10 +428,34 @@ export default function AlertasScreen() {
           );
         }}
         ListEmptyComponent={
-          <Text style={s.textMuted}>No tienes alertas activas por ahora.</Text>
+          hasAny ? (
+            <Text style={s.textMuted}>
+              No hay alertas para este filtro.
+            </Text>
+          ) : null
         }
       />
     </GestureHandlerRootView>
+  );
+}
+
+// Helpers UI
+
+function renderFilterChip(
+  value: FilterType,
+  label: string,
+  current: FilterType,
+  setFilter: (v: FilterType) => void,
+) {
+  const selected = current === value;
+  return (
+    <Pressable
+      key={value}
+      style={[s.chip, selected && s.chipSelected]}
+      onPress={() => setFilter(value)}
+    >
+      <Text style={[s.chipLabel, selected && s.chipLabelSelected]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -330,8 +476,55 @@ const s = StyleSheet.create({
     color: colors.text,
     fontSize: 20,
     fontWeight: '700',
+    marginBottom: 8,
+  },
+
+  summaryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  summaryText: {
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  summaryCritical: {
+    color: colors.danger ?? '#ef4444',
+    fontWeight: '600',
+  },
+  summaryWarning: {
+    color: colors.warning ?? '#facc15',
+    fontWeight: '600',
+  },
+
+  filtersRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     marginBottom: 12,
   },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+  },
+  chipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipLabel: {
+    fontSize: 12,
+    color: colors.text,
+  },
+  chipLabelSelected: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+
   card: {
     padding: 12,
     borderRadius: 12,
@@ -391,6 +584,7 @@ const s = StyleSheet.create({
   },
   textMuted: {
     color: colors.textMuted,
+    textAlign: 'center',
   },
   err: {
     color: colors.danger ?? '#ef4444',

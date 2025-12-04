@@ -90,7 +90,9 @@ export default function AnomaliasScreen() {
       }
     },
     onSettled: () => {
+      // refrescamos anomalías y alertas (para el badge de la campanita)
       queryClient.invalidateQueries({ queryKey: ['transactions', 'anomalies'] });
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
     },
   });
 

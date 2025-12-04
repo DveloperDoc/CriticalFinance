@@ -1,5 +1,5 @@
 // app/(tabs)/index.tsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   SafeAreaView,
   View,
@@ -55,7 +55,9 @@ const normalizeMe = (raw: any): Me => {
   return {
     id: base?.id ?? '',
     email: base?.email ?? '',
-    accounts: Array.isArray(base?.accounts) ? (base.accounts as MeAccount[]) : [],
+    accounts: Array.isArray(base?.accounts)
+      ? (base.accounts as MeAccount[])
+      : [],
   };
 };
 
@@ -81,9 +83,33 @@ export default function HomeScreen() {
     retry: 0,
   });
 
-  const accId = meQ.data?.accounts?.[0]?.id ?? null;
+  // cuenta seleccionada
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
+    null,
+  );
 
-  // cuenta principal (si existe)
+  // cuando /me se carga o cambia, aseguramos que haya una cuenta seleccionada válida
+  useEffect(() => {
+    const accounts = meQ.data?.accounts ?? [];
+    if (!accounts.length) {
+      setSelectedAccountId(null);
+      return;
+    }
+
+    if (!selectedAccountId) {
+      setSelectedAccountId(accounts[0].id);
+      return;
+    }
+
+    const stillExists = accounts.some((a) => a.id === selectedAccountId);
+    if (!stillExists) {
+      setSelectedAccountId(accounts[0].id);
+    }
+  }, [meQ.data, selectedAccountId]);
+
+  const accId = selectedAccountId;
+
+  // cuenta actual (si existe)
   const currentAccount: MeAccount | null =
     accId && meQ.data?.accounts
       ? meQ.data.accounts.find((a) => a.id === accId) ?? null
@@ -117,7 +143,7 @@ export default function HomeScreen() {
     retry: 0,
   });
 
-  // anomalías para mostrar contador en Home
+  // anomalías para mostrar contador en Home (por cuenta)
   const {
     data: anomalies = [],
     isLoading: anomaliesLoading,
@@ -295,7 +321,7 @@ export default function HomeScreen() {
     );
   }
 
-  if (meQ.isLoading || txQ.isLoading) {
+  if (meQ.isLoading || txQ.isLoading || !meQ.data) {
     return (
       <SafeAreaView style={s.container}>
         <View style={s.center}>
@@ -326,7 +352,9 @@ export default function HomeScreen() {
     return (
       <SafeAreaView style={s.container}>
         <View style={s.center}>
-          <Text style={s.cardSub}>Tu usuario aún no tiene cuentas asociadas.</Text>
+          <Text style={s.cardSub}>
+            Tu usuario aún no tiene cuentas asociadas.
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -346,6 +374,8 @@ export default function HomeScreen() {
       trendLabel = 'Gasto muy similar al mes pasado';
     }
   }
+
+  const accounts = meQ.data.accounts ?? [];
 
   return (
     <SafeAreaView style={s.container}>
@@ -370,8 +400,48 @@ export default function HomeScreen() {
           <Text style={s.account}>Cuenta principal: {accountLabel}</Text>
         </View>
 
-        {/* IA Summary */}
-        <MlSummaryCard />
+        {/* Selector de cuenta */}
+        {accounts.length > 1 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.accountsRow}
+          >
+            {accounts.map((a) => {
+              const selected = a.id === accId;
+              const label =
+                a.alias ||
+                a.bank ||
+                (a.accountNumber
+                  ? `Cuenta ${a.accountNumber}`
+                  : `Cuenta ${a.id.slice(0, 6)}…`);
+
+              return (
+                <TouchableOpacity
+                  key={a.id}
+                  style={[
+                    s.accountChip,
+                    selected && s.accountChipSelected,
+                  ]}
+                  onPress={() => setSelectedAccountId(a.id)}
+                  activeOpacity={0.85}
+                >
+                  <Text
+                    style={[
+                      s.accountChipText,
+                      selected && s.accountChipTextSelected,
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        {/* IA Summary por cuenta */}
+        <MlSummaryCard accountId={accId} />
 
         {/* Bloque de anomalías */}
         <View style={[s.card, { marginHorizontal: 16, marginTop: 8 }]}>
@@ -429,7 +499,8 @@ export default function HomeScreen() {
                   </Text>
                   {hormigaCountMonth > 0 && (
                     <Text style={[s.cardSub, { marginTop: 2 }]}>
-                      Este mes llevas {fmtCLP(hormigaSumMonth)} en gastos hormiga.
+                      Este mes llevas {fmtCLP(hormigaSumMonth)} en gastos
+                      hormiga.
                     </Text>
                   )}
                 </>
@@ -437,10 +508,7 @@ export default function HomeScreen() {
             </View>
 
             <TouchableOpacity
-              style={[
-                s.iaButton,
-                hormigaCount30d === 0 && { opacity: 0.6 },
-              ]}
+              style={[s.iaButton, hormigaCount30d === 0 && { opacity: 0.6 }]}
               disabled={hormigaCount30d === 0}
               onPress={() => router.navigate('/(tabs)/movimientos')}
               activeOpacity={0.85}
@@ -492,14 +560,14 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        {/* Gasto por mes: gráfico lineal estilo app financiera */}
+        {/* Gasto por mes: gráfico lineal */}
         <View style={s.chartCard}>
           <View style={s.chartHeaderRow}>
             <View>
               <Text style={s.sectionTitle}>Tendencia de gasto (6 meses)</Text>
               <Text style={s.chartFoot}>
-                Se muestra el gasto total por mes. Tramo verde = bajaste gasto, rojo =
-                subiste.
+                Se muestra el gasto total por mes. Tramo verde = bajaste gasto,
+                rojo = subiste.
               </Text>
             </View>
             <View
@@ -525,11 +593,15 @@ export default function HomeScreen() {
           <View style={s.chartInlineKpis}>
             <View>
               <Text style={s.chartMiniLabel}>Este mes</Text>
-              <Text style={s.chartMiniValue}>{fmtCLP(spendThisMonth ?? 0)}</Text>
+              <Text style={s.chartMiniValue}>
+                {fmtCLP(spendThisMonth ?? 0)}
+              </Text>
             </View>
             <View>
               <Text style={s.chartMiniLabel}>Mes anterior</Text>
-              <Text style={s.chartMiniValue}>{fmtCLP(spendPrevMonth ?? 0)}</Text>
+              <Text style={s.chartMiniValue}>
+                {fmtCLP(spendPrevMonth ?? 0)}
+              </Text>
             </View>
           </View>
         </View>
@@ -545,7 +617,9 @@ export default function HomeScreen() {
                 <View key={c.label} style={s.shareRow}>
                   <View style={s.shareHeader}>
                     <Text style={s.shareLabel}>{c.label}</Text>
-                    <Text style={s.sharePct}>{(c.pct * 100).toFixed(1)}%</Text>
+                    <Text style={s.sharePct}>
+                      {(c.pct * 100).toFixed(1)}%
+                    </Text>
                   </View>
                   <View style={s.shareBarBg}>
                     <View
@@ -561,8 +635,8 @@ export default function HomeScreen() {
             </View>
           )}
           <Text style={s.chartFoot}>
-            Porcentaje calculado sobre el total gastado (débitos) de los últimos 30
-            días.
+            Porcentaje calculado sobre el total gastado (débitos) de los últimos
+            30 días.
           </Text>
         </View>
       </ScrollView>
@@ -726,6 +800,34 @@ const s = StyleSheet.create({
     marginTop: 2,
   },
 
+  // selector de cuentas
+  accountsRow: {
+    paddingHorizontal: 16,
+    paddingBottom: 4,
+    gap: 8,
+  },
+  accountChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+    marginRight: 8,
+  },
+  accountChipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  accountChipText: {
+    fontSize: 12,
+    color: colors.text,
+  },
+  accountChipTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+
   // KPIs
   cardsRow: {
     flexDirection: 'row',
@@ -869,7 +971,7 @@ const s = StyleSheet.create({
     color: colors.textMuted,
   },
 
-  // “torta” → barras horizontales por categoría
+  // barras horizontales por categoría
   shareList: {
     gap: 10,
   },
